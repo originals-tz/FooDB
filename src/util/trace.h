@@ -9,27 +9,27 @@
 
 namespace util
 {
-//! @brief print bool
-static void Print(std::stringstream& data, const bool& value)
+struct Output
 {
-    data << ((value == true) ? "true" : "false");
-}
+    //! @brief print bool
+    static void Print(std::stringstream& data, const bool& value) { data << ((value == true) ? "true" : "false"); }
 
-//! @brief print normal data
-template <typename T>
-static void Print(std::stringstream& data, const T& value)
-{
-    data << value;
-}
+    //! @brief print normal data
+    template <typename T>
+    static void Print(std::stringstream& data, const T& value)
+    {
+        data << value;
+    }
 
-//! @brief print pair
-template <typename T1, typename T2>
-static void Print(std::stringstream& data, const std::pair<T1, T2>& value)
-{
-    Print(data, value.first);
-    data << "=";
-    Print(data, value.second);
-}
+    //! @brief print pair
+    template <typename T1, typename T2>
+    static void Print(std::stringstream& data, const std::pair<T1, T2>& value)
+    {
+        Print(data, value.first);
+        data << "=";
+        Print(data, value.second);
+    }
+};
 
 // whether is container type(has begin() & end())
 
@@ -49,7 +49,7 @@ struct HasIterator<T, std::void_t<decltype(std::declval<T>().begin()), decltype(
 template <typename T, bool IsContainer, bool IsString>
 struct Printer
 {
-    static void Out(std::stringstream& data, const T& t) { Print(data, t); }
+    static void Out(std::stringstream& data, const T& t) { Output::Print(data, t); }
 };
 
 //!@brief Print the container
@@ -63,7 +63,7 @@ struct Printer<T, true, false>
         data << "size=" << t.size() << ", value=[";
         while (begin != end)
         {
-            Print(data, *begin);
+            Output::Print(data, *begin);
             begin++;
             data << (begin != end ? ", " : "]");
         }

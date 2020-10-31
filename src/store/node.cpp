@@ -12,7 +12,7 @@ Node::Node(bool is_leaf)
 {
     if (m_is_leaf)
     {
-        m_leaf = Leaf::Alloc(MAX, 10, 10);
+        m_leaf = Leaf::Alloc(DataConf::GetInstance()->m_max_size, 10, 10);
     }
     else
     {

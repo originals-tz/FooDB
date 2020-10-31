@@ -3,7 +3,30 @@
 #include "record.h"
 
 struct Node;
-#define MAX 3
+
+struct DataConf
+{
+    static DataConf* GetInstance()
+    {
+        static DataConf conf;
+        return &conf;
+    }
+
+    DataConf()
+        : m_max_size(3)
+    {
+    }
+
+    void SetMaxSize(size_t size)
+    {
+        if (!(size & 1))
+        {
+            size++;
+        }
+        m_max_size = size;
+    }
+    size_t m_max_size;
+};
 
 struct Leaf
 {
@@ -82,9 +105,21 @@ struct IndexNodeData
 
 struct IndexNode
 {
+    IndexNode()
+    {
+        m_nodes = new IndexNodeData[DataConf::GetInstance()->m_max_size];
+        m_next = new Node*[DataConf::GetInstance()->m_max_size + 1];
+    }
+
+    ~IndexNode()
+    {
+        delete[] m_nodes;
+        delete[] m_next;
+    }
+
     size_t m_cur_count;
-    IndexNodeData m_nodes[MAX + 1];
-    Node* m_next[MAX + 2];
+    IndexNodeData* m_nodes;
+    Node** m_next;
 };
 
 #endif

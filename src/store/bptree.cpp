@@ -23,7 +23,7 @@ bool BPTree::Insert(const std::string& key, const void* value, size_t size)
     Node *cursor = nullptr, *parent = nullptr;
     std::tie(cursor, parent) = FindLeaf(key);
 
-    if (cursor->GetSize() < MAX)
+    if (cursor->GetSize() < DataConf::GetInstance()->m_max_size)
     {
         AddRecord(cursor, key, value, size);
         return true;
@@ -53,8 +53,8 @@ Node* BPTree::SplitLeafNode(Node* cursor, const char* key, const void* value, si
 
     // split the leaf node
     size_t i = cursor->FindPos(key);
-    size_t border = (MAX + 1) / 2;
-    for (size_t x = border; x < MAX; x++)
+    size_t border = (DataConf::GetInstance()->m_max_size + 1) / 2;
+    for (size_t x = border; x < DataConf::GetInstance()->m_max_size; x++)
     {
         new_leaf->AddRecord(old_leaf->GetRecord(x));
     }
@@ -108,7 +108,7 @@ bool BPTree::InsertInternal(const std::string& key, Node* cursor, Node* child)
     Require(cursor, false, Trace("InsertInternal: insert into a null node."));
     Require(child, false, Trace("InsertInternal: insert a null node."));
     Trace("insert internal node");
-    if (cursor->GetSize() < MAX)
+    if (cursor->GetSize() < DataConf::GetInstance()->m_max_size)
     {
         size_t i = cursor->FindPos(key.c_str());
         IndexNode* index_node = cursor->GetIndex();
@@ -125,27 +125,27 @@ bool BPTree::InsertInternal(const std::string& key, Node* cursor, Node* child)
     Node* new_internal_node = new Node(false);
     IndexNode* new_index = new_internal_node->GetIndex();
     IndexNode* old_index = cursor->GetIndex();
-    size_t i = cursor->FindPos(key.c_str());
-    size_t border = (MAX + 1) / 2;
-    for (size_t count = MAX - border, k = 1; count >= 0; count--, k++)
+    size_t new_pos = cursor->FindPos(key.c_str());
+    size_t border = (DataConf::GetInstance()->m_max_size + 1) / 2;
+    for (size_t count = DataConf::GetInstance()->m_max_size - border, k = 1; count >= 0; count--, k++)
     {
-        if (MAX <= 1)
+        if (DataConf::GetInstance()->m_max_size <= 1)
         {
             break;
         }
         if (count == 0)
         {
-            if (border == i)
+            if (border == new_pos)
             {
                 new_index->m_next[0] = child;
             }
             else
             {
-                new_index->m_next[0] = old_index->m_next[MAX + 1 - k];
+                new_index->m_next[0] = old_index->m_next[DataConf::GetInstance()->m_max_size + 1 - k];
             }
             break;
         }
-        if ((count + border) == i)
+        if ((count + border) == new_pos)
         {
             new_index->m_nodes[count - 1].m_key = key;
             new_index->m_next[count] = child;
@@ -153,14 +153,14 @@ bool BPTree::InsertInternal(const std::string& key, Node* cursor, Node* child)
             k--;
             continue;
         }
-        new_index->m_nodes[count - 1].m_key = old_index->m_nodes[MAX - k].m_key;
-        new_index->m_next[count] = old_index->m_next[MAX + 1 - k];
+        new_index->m_nodes[count - 1].m_key = old_index->m_nodes[DataConf::GetInstance()->m_max_size - k].m_key;
+        new_index->m_next[count] = old_index->m_next[DataConf::GetInstance()->m_max_size + 1 - k];
         new_index->m_cur_count++;
     }
     old_index->m_cur_count = border;
-    for (int j = border; j >= i; j--)
+    for (size_t j = border; j >= new_pos; j--)
     {
-        if (j == i)
+        if (j == new_pos)
         {
             old_index->m_nodes[j].m_key = key;
             old_index->m_next[j + 1] = child;

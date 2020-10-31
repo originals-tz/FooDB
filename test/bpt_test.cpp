@@ -3,9 +3,20 @@
 #include "store/bptree.h"
 #include "util/trace.h"
 
-int main()
+void Test()
 {
-    BPTree tree("/home/peaceless/repo/FooDB/readme.md");
+    BPTree tree("test");
+    tree.Traverse(tree.GetRoot());
+
+    tree.Insert("test", "hhh", 3);
+    tree.Insert("test", "hello", 5);
+
+    tree.Traverse(tree.GetRoot());
+}
+
+void Test2()
+{
+    BPTree tree("test");
     tree.Insert("00", "0", 1);
     tree.Insert("05", "5", 1);
     tree.Insert("15", "15", 2);
@@ -37,5 +48,12 @@ int main()
     Trace("delete all");
     tree.Delete(tree.GetRoot());
     tree.Traverse(tree.GetRoot());
+}
+
+int main()
+{
+    // DataConf::GetInstance()->m_max_size = 3;
+    Test();
+    Test2();
     return 0;
 }
