@@ -3,7 +3,6 @@
 #include <cstring>
 
 #include "util/macro.h"
-#include "util/trace.h"
 
 Record::Record()
     : m_key(nullptr)
@@ -23,7 +22,7 @@ void Record::Init(size_t key_size, size_t data_size, char* raw)
 {
     AssertRequire(key_size > 0 && data_size > 0 && raw, "record : init size <= 0 or nullptr");
 
-    Record* record = reinterpret_cast<Record*>(raw);
+    auto* record = reinterpret_cast<Record*>(raw);
     record->m_key_size = key_size;
     record->m_data_size = data_size;
 
@@ -60,18 +59,18 @@ char* Record::GetRawData()
 Data Record::GetData()
 {
     AssertRequire(m_data && m_data_size, "record not init");
-    Data data;
+    Data data{};
     data.m_data = m_data;
     data.m_data_size = m_data_size;
     return data;
 }
 
-size_t Record::GetKeySize()
+size_t Record::GetKeySize() const
 {
     return m_key_size;
 }
 
-size_t Record::GetDataSize()
+size_t Record::GetDataSize() const
 {
     return m_data_size;
 }

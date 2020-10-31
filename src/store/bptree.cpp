@@ -1,19 +1,20 @@
 #include "bptree.h"
 
 #include <cstring>
+#include <utility>
 
 #include "util/macro.h"
 #include "util/trace.h"
 
-BPTree::BPTree(const std::string& filename)
-    : m_file(filename)
+BPTree::BPTree(std::string  filename)
+    : m_file(std::move(filename))
     , m_root(nullptr)
 {
 }
 
 bool BPTree::Insert(const std::string& key, const void* value, size_t size)
 {
-    Require(key.size(), false, Trace("Insert: key is empty."));
+    Require(key.size(), false, Trace("Insert: key is empty."))
     if (!m_root)
     {
         m_root = new Node(true);
@@ -74,7 +75,7 @@ std::pair<Node*, Node*> BPTree::FindLeaf(const std::string& key)
     AssertRequire(m_root, "root is nullptr");
     Node* cursor = m_root;
     Node* parent = nullptr;
-    while (cursor->m_is_leaf == false)
+    while (!cursor->m_is_leaf)
     {
         parent = cursor;
         for (size_t i = 0; i < cursor->GetSize(); i++)
@@ -104,9 +105,9 @@ void BPTree::AddRecord(Node* cursor, const std::string& key, const void* value, 
 
 bool BPTree::InsertInternal(const std::string& key, Node* cursor, Node* child)
 {
-    Require(key.size(), false, Trace("InsertInternal: key is empty."));
-    Require(cursor, false, Trace("InsertInternal: insert into a null node."));
-    Require(child, false, Trace("InsertInternal: insert a null node."));
+    Require(key.size(), false, Trace("InsertInternal: key is empty."))
+    Require(cursor, false, Trace("InsertInternal: insert into a null node."))
+    Require(child, false, Trace("InsertInternal: insert a null node."))
     Trace("insert internal node");
     if (cursor->GetSize() < DataConf::GetInstance()->m_max_size)
     {
@@ -187,7 +188,7 @@ bool BPTree::InsertInternal(const std::string& key, Node* cursor, Node* child)
 
 Node* BPTree::Delete(Node* node)
 {
-    Require(node, nullptr, Trace("Delete: try to delete empty node!"));
+    Require(node, nullptr, Trace("Delete: try to delete empty node!"))
     if (node->m_is_leaf)
     {
         free(node->GetLeaf());
@@ -209,6 +210,7 @@ Node* BPTree::Delete(Node* node)
     if (node == m_root)
     {
         delete node;
+        node = nullptr;
         m_root = nullptr;
     }
     return node;
@@ -226,8 +228,8 @@ BPTree::~BPTree()
 
 void BPTree::Traverse(Node* node)
 {
-    Require(m_root, , Trace("Tree is empty."));
-    Require(node, , Trace("Traverse: traverse from an empty node."));
+    Require(m_root, , Trace("Tree is empty."))
+    Require(node, , Trace("Traverse: traverse from an empty node."))
     node->m_is_leaf ? TraverseLeaf(node) : TraverseIndex(node);
 }
 
@@ -257,8 +259,8 @@ void BPTree::TraverseIndex(Node* index_node)
 
 Node* BPTree::FindParent(Node* cursor, Node* child)
 {
-    Require(cursor, nullptr, Trace("FindParent: Find a child from a null node."));
-    Require(child, nullptr, Trace("FindParent: Want find a null node's parent."));
+    Require(cursor, nullptr, Trace("FindParent: Find a child from a null node."))
+    Require(child, nullptr, Trace("FindParent: Want find a null node's parent."))
     Node* parent;
     if (cursor->m_is_leaf || (cursor->GetIndex()->m_next[0]->m_is_leaf))
     {
@@ -283,7 +285,7 @@ Node* BPTree::FindParent(Node* cursor, Node* child)
 
 Data BPTree::Search(const std::string& key)
 {
-    Data data;
+    Data data{};
     data.m_data = nullptr;
     data.m_data_size = 0;
     if (key.empty())

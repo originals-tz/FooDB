@@ -55,12 +55,12 @@ public:
     /**
      * @brief get key size
      **/
-    size_t GetKeySize();
+    size_t GetKeySize() const;
 
     /**
      * @brief get data size
      **/
-    size_t GetDataSize();
+    size_t GetDataSize() const;
 
 private:
     char* m_key;

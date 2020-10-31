@@ -12,7 +12,7 @@ public:
      * @brief constructor of bptree
      * @param filename of bptree
      */
-    explicit BPTree(const std::string& filename);
+    explicit BPTree(std::string  filename);
 
     /*
      * @brief insert a leaf node

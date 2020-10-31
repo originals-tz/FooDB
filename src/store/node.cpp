@@ -20,7 +20,7 @@ Node::Node(bool is_leaf)
     }
 }
 
-size_t Node::GetSize()
+size_t Node::GetSize() const
 {
     if (m_is_leaf)
     {
@@ -31,7 +31,7 @@ size_t Node::GetSize()
         assert(m_index);
     }
     return m_is_leaf ? m_leaf->m_cur_count : m_index->m_cur_count;
-};
+}
 
 int Node::Compare(size_t i, const char* key)
 {
@@ -40,12 +40,12 @@ int Node::Compare(size_t i, const char* key)
     return std::strcmp(key, record_key);
 }
 
-Leaf* Node::GetLeaf()
+Leaf* Node::GetLeaf() const
 {
     return m_leaf;
 }
 
-IndexNode* Node::GetIndex()
+IndexNode* Node::GetIndex() const
 {
     return m_index;
 }

@@ -12,7 +12,7 @@ namespace util
 struct Output
 {
     //! @brief print bool
-    static void Print(std::stringstream& data, const bool& value) { data << ((value == true) ? "true" : "false"); }
+    static void Print(std::stringstream& data, const bool& value) { data << (value ? "true" : "false"); }
 
     //! @brief print normal data
     template <typename T>

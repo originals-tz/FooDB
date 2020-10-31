@@ -13,12 +13,12 @@ struct Node
      * @brief constructor of node
      * @param is_leaf leaf node or not
      */
-    Node(bool is_leaf);
+    explicit Node(bool is_leaf);
     /*
      * @brief get the size of data
      * @return size of data
      */
-    size_t GetSize();
+    size_t GetSize() const;
     /*
      * @brief compare the key with the key of data[i]
      * @return if key > data[i]'s key, return true
@@ -28,12 +28,12 @@ struct Node
      * @brief get node's pointer as leaf node
      * @return leaf pointer
      */
-    Leaf* GetLeaf();
+    Leaf* GetLeaf() const;
     /*
      * @brief get node's pointer as index node
      * @return index pointer
      */
-    IndexNode* GetIndex();
+    IndexNode* GetIndex() const;
 
     size_t FindPos(const char* key);
 };

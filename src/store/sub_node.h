@@ -19,7 +19,7 @@ struct DataConf
 
     void SetMaxSize(size_t size)
     {
-        if (!(size & 1))
+        if (!(size & (unsigned)1))
         {
             size++;
         }
@@ -64,7 +64,7 @@ struct Leaf
      * @brief check if the leaf hasn't slot for new record
      * @return true if leaf hasn't  slot for new record
      */
-    bool IsFull();
+    bool IsFull() const;
 
     /*
      * @brief get record from leaf
@@ -76,13 +76,13 @@ struct Leaf
      * @brief get the count of record
      * @return count of record
      */
-    size_t Size();
+    size_t Size() const;
     /*
      * @brief insert a record
      */
     Record* Insert(size_t index, const char* key, const void* data, size_t data_size);
 
-    /**
+    /*
      * @brief set m_cur_count = size
      **/
     void Resize(size_t size);
@@ -90,10 +90,6 @@ struct Leaf
     size_t m_record_size;
     size_t m_record_count;
     size_t m_cur_count;
-    /*
-     * @param m_next_leaf is used for find the next leaf node
-     * it will become easier to find a series number in a scope such as 1 - 5
-     */
     Node* m_next_leaf;
     char m_records[];
 };
@@ -117,7 +113,7 @@ struct IndexNode
         delete[] m_next;
     }
 
-    size_t m_cur_count;
+    size_t m_cur_count{};
     IndexNodeData* m_nodes;
     Node** m_next;
 };
