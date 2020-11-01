@@ -25,6 +25,7 @@ struct DataConf
         }
         m_max_size = size;
     }
+
     size_t m_max_size;
 };
 
@@ -58,6 +59,11 @@ struct Leaf
      */
     bool AddRecord(const char* key, const void* data, size_t data_size);
 
+    /**
+     * @brief add a record
+     * @param record which will be add
+     * @return add ok?
+     */
     bool AddRecord(Record* record);
 
     /*

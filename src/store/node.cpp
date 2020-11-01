@@ -35,7 +35,7 @@ size_t Node::GetSize() const
 
 int Node::Compare(size_t i, const char* key)
 {
-    AssertRequire(key, "key is nullptr");
+    assert(key && "key is nullptr");
     const char* record_key = m_is_leaf ? GetLeaf()->GetRecord(i)->GetKey() : GetIndex()->m_nodes[i].m_key.c_str();
     return std::strcmp(key, record_key);
 }
@@ -52,10 +52,9 @@ IndexNode* Node::GetIndex() const
 
 size_t Node::FindPos(const char* key)
 {
-    AssertRequire(key, "key is nullptr");
+    assert(key && "key is nullptr");
     size_t i = 0;
-    for (; i < GetSize() && Compare(i, key) > 0; i++)
-        ;
+    for (; i < GetSize() && Compare(i, key) > 0; i++);
     Trace(key, " pos =", i);
     return i;
 }

@@ -14,7 +14,6 @@ namespace util
             return ret;                 \
         }                               \
     }
-#define AssertRequire(condition, info) assert(condition && info)
 
 //! time test
 #define TIME_START() \

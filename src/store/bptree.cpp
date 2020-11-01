@@ -72,7 +72,7 @@ Node* BPTree::SplitLeafNode(Node* cursor, const char* key, const void* value, si
 
 std::pair<Node*, Node*> BPTree::FindLeaf(const std::string& key)
 {
-    AssertRequire(m_root, "root is nullptr");
+    assert(m_root && "root is nullptr");
     Node* cursor = m_root;
     Node* parent = nullptr;
     while (!cursor->m_is_leaf)
@@ -97,7 +97,7 @@ std::pair<Node*, Node*> BPTree::FindLeaf(const std::string& key)
 
 void BPTree::AddRecord(Node* cursor, const std::string& key, const void* value, size_t size)
 {
-    AssertRequire(cursor, "cursor node is nullptr");
+    assert(cursor && "cursor node is nullptr");
     size_t pos = cursor->FindPos(key.c_str());
     Leaf* leaf = cursor->GetLeaf();
     leaf->Insert(pos, key.c_str(), value, size);
@@ -235,7 +235,7 @@ void BPTree::Traverse(Node* node)
 
 void BPTree::TraverseLeaf(Node* leaf_node)
 {
-    AssertRequire(leaf_node && leaf_node->m_is_leaf, "nullptr or isn't leaf");
+    assert(leaf_node && leaf_node->m_is_leaf && "nullptr or isn't leaf");
     Leaf* leaf = leaf_node->GetLeaf();
     Trace("leaf node, size = ", leaf->m_cur_count);
     for (size_t i = 0; i < leaf->m_cur_count; i++)
@@ -248,7 +248,7 @@ void BPTree::TraverseLeaf(Node* leaf_node)
 
 void BPTree::TraverseIndex(Node* index_node)
 {
-    AssertRequire(index_node && !index_node->m_is_leaf, "nullptr or isn't index");
+    assert(index_node && !index_node->m_is_leaf && "nullptr or isn't index");
     IndexNode* index = index_node->GetIndex();
     Trace("traverse index, size=", index->m_cur_count);
     for (size_t i = 0; i <= index->m_cur_count; i++)
@@ -259,8 +259,8 @@ void BPTree::TraverseIndex(Node* index_node)
 
 Node* BPTree::FindParent(Node* cursor, Node* child)
 {
-    Require(cursor, nullptr, Trace("FindParent: Find a child from a null node."))
-    Require(child, nullptr, Trace("FindParent: Want find a null node's parent."))
+    Require(cursor, nullptr, Trace("FindParent: Find a child from a null node."));
+    Require(child, nullptr, Trace("FindParent: Want find a null node's parent."));
     Node* parent;
     if (cursor->m_is_leaf || (cursor->GetIndex()->m_next[0]->m_is_leaf))
     {
@@ -285,7 +285,7 @@ Node* BPTree::FindParent(Node* cursor, Node* child)
 
 Data BPTree::Search(const std::string& key)
 {
-    Data data{};
+    Data data;
     data.m_data = nullptr;
     data.m_data_size = 0;
     if (key.empty())

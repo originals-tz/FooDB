@@ -5,10 +5,10 @@
 #include "util/macro.h"
 
 Record::Record()
-    : m_key(nullptr)
-    , m_key_size(0)
-    , m_data(nullptr)
+    : m_key_size(0)
+    , m_key(nullptr)
     , m_data_size(0)
+    , m_data(nullptr)
 {
 }
 
@@ -20,7 +20,7 @@ void Record::Copy(const Record* record)
 
 void Record::Init(size_t key_size, size_t data_size, char* raw)
 {
-    AssertRequire(key_size > 0 && data_size > 0 && raw, "record : init size <= 0 or nullptr");
+    assert(key_size > 0 && data_size > 0 && raw && "record : init size <= 0 or nullptr");
 
     auto* record = reinterpret_cast<Record*>(raw);
     record->m_key_size = key_size;
@@ -32,16 +32,16 @@ void Record::Init(size_t key_size, size_t data_size, char* raw)
 
 void Record::SetKey(const std::string& key)
 {
-    AssertRequire(m_key && m_key_size, "record not init");
-    AssertRequire(key.size() + 1 <= m_key_size, "key size is too big");
+    assert(m_key && m_key_size && "record not init");
+    assert(key.size() + 1 <= m_key_size &&"key size is too big");
 
     strncpy(m_key, key.c_str(), key.size() + 1);
 }
 
 void Record::SetData(const void* data, size_t size)
 {
-    AssertRequire(m_data && m_data_size, "record not init");
-    AssertRequire(size <= m_data_size, "data size is too big");
+    assert(m_data && m_data_size && "record not init");
+    assert(size <= m_data_size && "data size is too big");
 
     memcpy(m_data, data, size);
 }
@@ -58,8 +58,8 @@ char* Record::GetRawData()
 
 Data Record::GetData()
 {
-    AssertRequire(m_data && m_data_size, "record not init");
-    Data data{};
+    assert(m_data && m_data_size && "record not init");
+    Data data;
     data.m_data = m_data;
     data.m_data_size = m_data_size;
     return data;

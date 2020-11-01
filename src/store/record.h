@@ -4,6 +4,11 @@
 
 struct Data
 {
+    Data()
+        : m_data_size(0)
+        , m_data(nullptr)
+    {
+    }
     size_t m_data_size;
     const char* m_data;
 };
@@ -63,11 +68,11 @@ public:
     size_t GetDataSize() const;
 
 private:
-    char* m_key;
     size_t m_key_size;
+    char* m_key;
 
-    char* m_data;
     size_t m_data_size;
+    char* m_data;
 };
 
 #endif

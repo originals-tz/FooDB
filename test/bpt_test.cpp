@@ -52,7 +52,7 @@ void Test2()
 
 int main()
 {
-    // DataConf::GetInstance()->m_max_size = 3;
+     DataConf::GetInstance()->m_max_size = 3;
     Test();
     Test2();
     return 0;

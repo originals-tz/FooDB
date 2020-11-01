@@ -15,7 +15,7 @@ Leaf::Leaf()
 
 Leaf* Leaf::Alloc(size_t record_size, size_t key_size, size_t data_size)
 {
-    AssertRequire(record_size && key_size && data_size, "param error");
+    assert(record_size && key_size && data_size && "param error");
 
     size_t raw_size = sizeof(Leaf) + (sizeof(Record) + key_size + data_size) * record_size;
     void* raw = malloc(raw_size);
@@ -37,7 +37,7 @@ void Leaf::Free(Leaf* leaf)
 
 void Leaf::InitLeaf(Leaf* leaf, size_t record_count, size_t key_size, size_t data_size)
 {
-    AssertRequire(leaf && record_count && key_size && data_size, "leaf init : param error");
+    assert(leaf && record_count && key_size && data_size && "leaf init : param error");
     leaf->m_record_count = record_count;
     leaf->m_record_size = key_size + data_size + sizeof(Record);
     leaf->m_next_leaf = nullptr;
@@ -82,8 +82,8 @@ size_t Leaf::Size() const
 
 Record* Leaf::Insert(size_t index, const char* key, const void* data, size_t data_size)
 {
-    AssertRequire(index < m_record_count, "out of index");
-    AssertRequire(key, "key is nullptr");
+    assert(index < m_record_count && "out of index");
+    assert(key && "key is nullptr");
     Require(IsFull() == false, nullptr, Trace("leaf is full, fail to insert"))
 
     if (index >= m_cur_count)

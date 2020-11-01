@@ -26,7 +26,7 @@ public:
     ~BPTree();
 
     /*
-     * @brief traverse all tree
+     * @brief traverse the tree
      * @param which node is the beginning
      */
     void Traverse(Node* node);
@@ -47,6 +47,10 @@ public:
      */
     Node* Delete(Node* node);
 
+    /**
+     * @brief get root node of bptree
+     * @return root node
+     */
     Node* GetRoot();
 
 private:
@@ -69,13 +73,22 @@ private:
      * @return <leaf, parent node of leaf>
      */
     std::pair<Node*, Node*> FindLeaf(const std::string& key);
-    /*
+    /**
      * @brief add a record in cur node
+     * @param cur current node
+     * @param key data key
+     * @param value  data value
+     * @param size  value size
      */
     void AddRecord(Node* cur, const std::string& key, const void* value, size_t size);
-    /**
-     * @brief split the leaf node
-     */
+     /**
+      * @brief split the leaf node and insert data
+      * @param cur node will be split
+      * @param key data key
+      * @param value data value
+      * @param size value size
+      * @return new node
+      */
     Node* SplitLeafNode(Node* cur, const char* key, const void* value, size_t size);
 
     std::string m_file;
