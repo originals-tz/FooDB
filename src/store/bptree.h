@@ -1,6 +1,7 @@
 #ifndef _BPTREE_H_
 #define _BPTREE_H_
 
+#include <optional>
 #include <string>
 #include <vector>
 #include "node.h"
@@ -8,88 +9,98 @@
 class BPTree
 {
 public:
-    /*
-     * @brief constructor of bptree
-     * @param filename of bptree
+    /**
+     * @brief 构造函数
+     * @param filename 文件名
+     * @param node_size 每个节点的最大容量
      */
-    explicit BPTree(std::string filename, size_t record_max_size);
+    explicit BPTree(std::string filename, size_t node_size);
+    ~BPTree();
 
-    /*
-     * @brief insert a leaf node
-     * @return result of insert successful
+    /**
+     * @brief 插入一个叶子节点
+     * @param key
+     * @param value
+     * @param size 数据的大小
+     * @return 是否成功插入
      */
     bool Insert(const std::string& key, const void* value, size_t size);
 
     /*
-     * @brief destructor of bptree
-     */
-    ~BPTree();
-
-    /*
-     * @brief traverse the tree
-     * @param which node is the beginning
+     * @brief 遍历
+     * @param 起始节点
      */
     void Traverse(Node* node);
     void TraverseLeaf(Node* leaf_node);
     void TraverseIndex(Node* index_node);
 
-    /*
-     * @brief search one record by key
-     * @param key key will be found
-     * @return Data struct with record data in
+    /**
+     * @brief 搜索
+     * @param key
+     * @return 结果
      */
-    Data Search(const std::string& key);
-
-    /*
-     * @brief delete children of node
-     * @node node's children will delete
-     * @return node
-     */
-    Node* Delete(Node* node);
+    std::optional<Data> Search(const std::string& key);
 
     /**
-     * @brief get root node of bptree
+     * @brief 删除索引节点
+     * @param node 索引节点
+     */
+    void DeleteIndexNode(Node* node);
+
+    /**
+     * @brief 获取根节点
      * @return root node
      */
     Node* GetRoot();
 
 private:
-    /*
-     * @brief insert one node into a parent index node
-     * @param key cursor's minimum key
-     * @param cursor parent index node
-     * @param child node should be insert
-     * @return true for success
+
+    /**
+     * @brief 插入一个内部节点
+     * @param key
+     * @param cursor
+     * @param child
+     * @return
      */
     bool InsertInternal(const std::string& key, Node* cursor, Node* child);
-    /*
-     * @brief find child's parant from cursor
-     * @param cursor child's ancestor
-     * @param child the node will be found in tree
+    /**
+     * @brief 以cursor为起点寻找child的父节点
+     * @param cursor 目标树
+     * @param child 目标子节点
+     * @return 父节点
      */
     Node* FindParent(Node* cursor, Node* child);
-    /*
-     * @brief find a leaf node for key
-     * @return <leaf, parent node of leaf>
+
+    /**
+     * @brief 为key找到叶子节点
+     * @param key
+     * @return first：合适的节点， second：该节点的父节点
      */
     std::pair<Node*, Node*> FindLeaf(const std::string& key);
+
     /**
-     * @brief add a record in cur node
-     * @param cur current node
-     * @param key data key
-     * @param value  data value
-     * @param size  value size
+     * @brief 添加一条记录
+     * @param cur 当前节点
+     * @param key 新加入的key
+     * @param value 新加入的值
+     * @param size 值的大小
      */
     void AddRecord(Node* cur, const std::string& key, const void* value, size_t size);
+
     /**
-     * @brief split the leaf node and insert data
-     * @param cur node will be split
-     * @param key data key
-     * @param value data value
-     * @param size value size
-     * @return new node
+     * @brief 分裂叶子节点
+     * @param cur 需要分裂的节点
+     * @param key 新加入的key
+     * @param value 新加入的值
+     * @param size 值的大小
+     * @return 新的节点
      */
     Node* SplitLeafNode(Node* cur, const char* key, const void* value, size_t size);
+
+    /**
+     * @brief 删除节点
+     */
+    Node* DeleteNode(Node* node);
 
     std::string m_file;
     size_t m_record_max_size;

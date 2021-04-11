@@ -41,12 +41,15 @@ void Test2()
     tree.Insert("02", "2", 1);
     tree.Insert("08", "8", 1);
     tree.Traverse(tree.GetRoot());
-    Data data = tree.Search("08");
-    Trace("try to search a number");
-    std::string str_data(data.m_data, data.m_data_size);
-    std::cout << str_data << std::endl;
+    auto data = tree.Search("08");
+    if (data.has_value())
+    {
+        Trace("try to search a number");
+        std::string str_data(data.value().m_data, data.value().m_data_size);
+        std::cout << str_data << std::endl;
+    }
     Trace("delete all");
-    tree.Delete(tree.GetRoot());
+    tree.DeleteIndexNode(tree.GetRoot());
     tree.Traverse(tree.GetRoot());
 }
 

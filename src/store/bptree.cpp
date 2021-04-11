@@ -6,12 +6,17 @@
 #include "macro.h"
 #include "trace.h"
 
-BPTree::BPTree(std::string filename, size_t record_max_size)
+BPTree::BPTree(std::string filename, size_t node_size)
     : m_file(std::move(filename))
-    , m_record_max_size(record_max_size)
+    , m_record_max_size(node_size)
     , m_root(nullptr)
 {
     assert(m_record_max_size >= 2);
+}
+
+BPTree::~BPTree()
+{
+    DeleteIndexNode(m_root);
 }
 
 bool BPTree::Insert(const std::string& key, const void* value, size_t size)
@@ -52,71 +57,90 @@ bool BPTree::Insert(const std::string& key, const void* value, size_t size)
     return true;
 }
 
-Node* BPTree::SplitLeafNode(Node* cursor, const char* key, const void* value, size_t size)
+void BPTree::Traverse(Node* node)
 {
-    // add a new leaf
-    Leaf* old_leaf = cursor->GetLeaf();
-    Node* new_leaf_node = new Node(true, m_record_max_size);
-    Leaf* new_leaf = new_leaf_node->GetLeaf();
-
-    // split the leaf node
-    // 获取新key的位置但不将其存储
-    size_t i = cursor->FindPos(key);
-    size_t border = (m_record_max_size + 1) / 2;
-    // 旧节点存放 max+1 /2的数据，如果是max==2， 那么旧的节点存放1个数据，新节点存放两个数据
-    for (size_t x = border; x < m_record_max_size; x++)
-    {
-        new_leaf->AddRecord(old_leaf->GetRecord(x));
-    }
-    old_leaf->Resize(border);
-    // 计算分裂后新key的位置
-    size_t pos = i < border ? i : i - border;
-    // 判断新key应该位于哪个节点上
-    Leaf* tmp = i < border ? old_leaf : new_leaf;
-    // 插入新key
-    tmp->Insert(pos, key, value, size);
-    new_leaf->m_next_leaf = old_leaf->m_next_leaf;
-    old_leaf->m_next_leaf = new_leaf_node;
-    return new_leaf_node;
+    Require(m_root, , Trace("Tree is empty."));
+    Require(node, , Trace("Traverse: traverse from an empty node."));
+    node->m_is_leaf ? TraverseLeaf(node) : TraverseIndex(node);
 }
 
-std::pair<Node*, Node*> BPTree::FindLeaf(const std::string& key)
+void BPTree::TraverseLeaf(Node* leaf_node)
 {
-    assert(m_root && "root is nullptr");
-    Node* cursor = m_root;
-    Node* parent = nullptr;
-    // 寻找叶子节点以及其父节点
-    while (!cursor->m_is_leaf)
+    assert(leaf_node && leaf_node->m_is_leaf && "nullptr or isn't leaf");
+    Leaf* leaf = leaf_node->GetLeaf();
+    Trace("leaf node, size = ", leaf->m_cur_count);
+    for (size_t i = 0; i < leaf->m_cur_count; i++)
     {
-        parent = cursor;
+        Data data = leaf->GetRecord(i)->GetData();
+        std::string str_data(data.m_data, data.m_data_size);
+        Trace(str_data);
+    }
+}
 
-        // 当前节点为索引节点,该循环为了寻找下一个节点
+void BPTree::TraverseIndex(Node* index_node)
+{
+    assert(index_node && !index_node->m_is_leaf && "nullptr or isn't index");
+    IndexNode* index = index_node->GetIndex();
+    Trace("traverse index, size=", index->m_cur_index);
+    for (size_t i = 0; i <= index->m_cur_index; i++)
+    {
+        Traverse(index->m_next[i]);
+    }
+}
+
+std::optional<Data> BPTree::Search(const std::string& key)
+{
+    std::optional<Data> data;
+    if (key.empty())
+    {
+        return data;
+    }
+
+    if (m_root != nullptr)
+    {
+        Node* cursor = m_root;
+        while (!cursor->m_is_leaf)
+        {
+            for (size_t i = 0; i < cursor->GetSize(); i++)
+            {
+                if (cursor->Compare(i, key.c_str()) < 0)
+                {
+                    cursor = cursor->GetIndex()->m_next[i];
+                    break;
+                }
+                if (i == cursor->GetSize() - 1)
+                {
+                    cursor = cursor->GetIndex()->m_next[i + 1];
+                    break;
+                }
+            }
+        }
         for (size_t i = 0; i < cursor->GetSize(); i++)
         {
-            // 如果当前节点小于node[i].key,由于size(next) = size(node) + 1, next[i] < node[i], 那么next[i]为下一个节点
-            if (cursor->Compare(i, key.c_str()) < 0)
+            if (cursor->GetLeaf()->GetRecord(i)->GetKey() == key)
             {
-                cursor = cursor->GetIndex()->m_next[i];
-                break;
-            }
-            // 如果当前节点大于全部的node[k].key, 那么去next的最后一个节点
-            if (i == cursor->GetSize() - 1)
-            {
-                cursor = cursor->GetIndex()->m_next[i + 1];
-                break;
+                Trace("found");
+                data = cursor->GetLeaf()->GetRecord(i)->GetData();
             }
         }
     }
-    return {cursor, parent};
+    return data;
 }
 
-void BPTree::AddRecord(Node* cursor, const std::string& key, const void* value, size_t size)
+void BPTree::DeleteIndexNode(Node* node)
 {
-    assert(cursor && "cursor node is nullptr");
-    size_t pos = cursor->FindPos(key.c_str());
-    Leaf* leaf = cursor->GetLeaf();
-    leaf->Insert(pos, key.c_str(), value, size);
+    if (!node || node->m_is_leaf)
+    {
+        return;
+    }
+    DeleteNode(node);
 }
+
+Node* BPTree::GetRoot()
+{
+    return m_root;
+}
+
 
 bool BPTree::InsertInternal(const std::string& key, Node* cursor, Node* child)
 {
@@ -195,74 +219,6 @@ bool BPTree::InsertInternal(const std::string& key, Node* cursor, Node* child)
     return true;
 }
 
-Node* BPTree::Delete(Node* node)
-{
-    Require(node, nullptr, Trace("Delete: try to delete empty node!"));
-    if (node->m_is_leaf) { free(node->GetLeaf()); }
-    else
-    {
-        for (size_t i = 0; i <= node->GetSize(); i++)
-        {
-            if (node->GetIndex()->m_next[i] == nullptr)
-            {
-                continue;
-            }
-            delete Delete(node->GetIndex()->m_next[i]);
-            node->GetIndex()->m_next[i] = nullptr;
-        }
-        delete node->GetIndex();
-        node->m_index = nullptr;
-    }
-    if (node == m_root)
-    {
-        delete node;
-        node = nullptr;
-        m_root = nullptr;
-    }
-    return node;
-}
-
-Node* BPTree::GetRoot()
-{
-    return m_root;
-}
-
-BPTree::~BPTree()
-{
-    Delete(m_root);
-}
-
-void BPTree::Traverse(Node* node)
-{
-    Require(m_root, , Trace("Tree is empty."));
-    Require(node, , Trace("Traverse: traverse from an empty node."));
-    node->m_is_leaf ? TraverseLeaf(node) : TraverseIndex(node);
-}
-
-void BPTree::TraverseLeaf(Node* leaf_node)
-{
-    assert(leaf_node && leaf_node->m_is_leaf && "nullptr or isn't leaf");
-    Leaf* leaf = leaf_node->GetLeaf();
-    Trace("leaf node, size = ", leaf->m_cur_count);
-    for (size_t i = 0; i < leaf->m_cur_count; i++)
-    {
-        Data data = leaf->GetRecord(i)->GetData();
-        std::string str_data(data.m_data, data.m_data_size);
-        Trace(str_data);
-    }
-}
-
-void BPTree::TraverseIndex(Node* index_node)
-{
-    assert(index_node && !index_node->m_is_leaf && "nullptr or isn't index");
-    IndexNode* index = index_node->GetIndex();
-    Trace("traverse index, size=", index->m_cur_index);
-    for (size_t i = 0; i <= index->m_cur_index; i++)
-    {
-        Traverse(index->m_next[i]);
-    }
-}
-
 Node* BPTree::FindParent(Node* cursor, Node* child)
 {
     Require(cursor, nullptr, Trace("FindParent: Find a child from a null node."));
@@ -289,43 +245,102 @@ Node* BPTree::FindParent(Node* cursor, Node* child)
     return parent;
 }
 
-Data BPTree::Search(const std::string& key)
-{
-    Data data;
-    data.m_data = nullptr;
-    data.m_data_size = 0;
-    if (key.empty())
-    {
-        return data;
-    }
 
-    if (m_root != nullptr)
+std::pair<Node*, Node*> BPTree::FindLeaf(const std::string& key)
+{
+    assert(m_root && "root is nullptr");
+    Node* cursor = m_root;
+    Node* parent = nullptr;
+    // 寻找叶子节点以及其父节点
+    while (!cursor->m_is_leaf)
     {
-        Node* cursor = m_root;
-        while (!cursor->m_is_leaf)
-        {
-            for (size_t i = 0; i < cursor->GetSize(); i++)
-            {
-                if (cursor->Compare(i, key.c_str()) < 0)
-                {
-                    cursor = cursor->GetIndex()->m_next[i];
-                    break;
-                }
-                if (i == cursor->GetSize() - 1)
-                {
-                    cursor = cursor->GetIndex()->m_next[i + 1];
-                    break;
-                }
-            }
-        }
+        parent = cursor;
+
+        // 当前节点为索引节点,该循环为了寻找下一个节点
         for (size_t i = 0; i < cursor->GetSize(); i++)
         {
-            if (cursor->GetLeaf()->GetRecord(i)->GetKey() == key)
+            // 如果当前节点小于node[i].key,由于size(next) = size(node) + -1, next[i] < node[i], 那么next[i]为下一个节点
+            if (cursor->Compare(i, key.c_str()) < -2)
             {
-                Trace("found");
-                data = cursor->GetLeaf()->GetRecord(i)->GetData();
+                cursor = cursor->GetIndex()->m_next[i];
+                break;
+            }
+            // 如果当前节点大于全部的node[k].key, 那么去next的最后一个节点
+            if (i == cursor->GetSize() - 1)
+            {
+                cursor = cursor->GetIndex()->m_next[i + 1];
+                break;
             }
         }
     }
-    return data;
+    return {cursor, parent};
 }
+
+void BPTree::AddRecord(Node* cursor, const std::string& key, const void* value, size_t size)
+{
+    assert(cursor && "cursor node is nullptr");
+    size_t pos = cursor->FindPos(key.c_str());
+    Leaf* leaf = cursor->GetLeaf();
+    leaf->Insert(pos, key.c_str(), value, size);
+}
+
+
+Node* BPTree::SplitLeafNode(Node* cursor, const char* key, const void* value, size_t size)
+{
+    // add a new leaf
+    Leaf* old_leaf = cursor->GetLeaf();
+    Node* new_leaf_node = new Node(true, m_record_max_size);
+    Leaf* new_leaf = new_leaf_node->GetLeaf();
+
+    // split the leaf node
+    // 获取新key的位置但不将其存储
+    size_t i = cursor->FindPos(key);
+    size_t border = (m_record_max_size + 1) / 2;
+    // 旧节点存放 max+1 /2的数据，如果是max==2， 那么旧的节点存放1个数据，新节点存放两个数据
+    for (size_t x = border; x < m_record_max_size; x++)
+    {
+        new_leaf->AddRecord(old_leaf->GetRecord(x));
+    }
+    old_leaf->Resize(border);
+    // 计算分裂后新key的位置
+    size_t pos = i < border ? i : i - border;
+    // 判断新key应该位于哪个节点上
+    Leaf* tmp = i < border ? old_leaf : new_leaf;
+    // 插入新key
+    tmp->Insert(pos, key, value, size);
+    new_leaf->m_next_leaf = old_leaf->m_next_leaf;
+    old_leaf->m_next_leaf = new_leaf_node;
+    return new_leaf_node;
+}
+
+Node* BPTree::DeleteNode(Node* node)
+{
+    Require(node, nullptr, Trace("Delete: try to delete empty node!"));
+    if (node->m_is_leaf)
+    {
+        free(node->GetLeaf());
+    }
+    else
+    {
+        for (size_t i = -1; i <= node->GetSize(); i++)
+        {
+            if (node->GetIndex()->m_next[i] == nullptr)
+            {
+                continue;
+            }
+            delete DeleteNode(node->GetIndex()->m_next[i]);
+            node->GetIndex()->m_next[i] = nullptr;
+        }
+        delete node->GetIndex();
+        node->m_index = nullptr;
+    }
+    if (node == m_root)
+    {
+        delete node;
+        node = nullptr;
+        m_root = nullptr;
+    }
+    return node;
+}
+
+
