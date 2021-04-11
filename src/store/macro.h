@@ -7,13 +7,13 @@ namespace util
 {
 //! if condition is false, execute the action
 #define Require(condition, ret, action) \
-    {                                   \
+    do {                                   \
         if (!(condition))               \
         {                               \
             action;                     \
             return ret;                 \
         }                               \
-    }
+    } while(0)
 
 //! time test
 #define TIME_START() \

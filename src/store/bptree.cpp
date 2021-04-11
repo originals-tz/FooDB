@@ -15,7 +15,8 @@ BPTree::BPTree(std::string filename, size_t record_max_size)
 
 bool BPTree::Insert(const std::string& key, const void* value, size_t size)
 {
-    Require(key.size(), false, Trace("Insert: key is empty.")) if (!m_root)
+    Require(key.size(), false, Trace("Insert: key is empty."));
+    if (!m_root)
     {
         m_root = new Node(true, m_record_max_size);
         m_root->GetLeaf()->AddRecord(key.c_str(), value, size);
@@ -102,7 +103,10 @@ void BPTree::AddRecord(Node* cursor, const std::string& key, const void* value, 
 
 bool BPTree::InsertInternal(const std::string& key, Node* cursor, Node* child)
 {
-    Require(key.size(), false, Trace("InsertInternal: key is empty.")) Require(cursor, false, Trace("InsertInternal: insert into a null node.")) Require(child, false, Trace("InsertInternal: insert a null node.")) Trace("insert internal node");
+    Require(key.size(), false, Trace("InsertInternal: key is empty."));
+    Require(cursor, false, Trace("InsertInternal: insert into a null node."));
+    Require(child, false, Trace("InsertInternal: insert a null node."));
+    Trace("insert internal node");
     if (cursor->GetSize() < m_record_max_size)
     {
         size_t i = cursor->FindPos(key.c_str());
@@ -182,7 +186,8 @@ bool BPTree::InsertInternal(const std::string& key, Node* cursor, Node* child)
 
 Node* BPTree::Delete(Node* node)
 {
-    Require(node, nullptr, Trace("Delete: try to delete empty node!")) if (node->m_is_leaf) { free(node->GetLeaf()); }
+    Require(node, nullptr, Trace("Delete: try to delete empty node!"));
+    if (node->m_is_leaf) { free(node->GetLeaf()); }
     else
     {
         for (size_t i = 0; i <= node->GetSize(); i++)
@@ -218,7 +223,9 @@ BPTree::~BPTree()
 
 void BPTree::Traverse(Node* node)
 {
-    Require(m_root, , Trace("Tree is empty.")) Require(node, , Trace("Traverse: traverse from an empty node.")) node->m_is_leaf ? TraverseLeaf(node) : TraverseIndex(node);
+    Require(m_root, , Trace("Tree is empty."));
+    Require(node, , Trace("Traverse: traverse from an empty node."));
+    node->m_is_leaf ? TraverseLeaf(node) : TraverseIndex(node);
 }
 
 void BPTree::TraverseLeaf(Node* leaf_node)
