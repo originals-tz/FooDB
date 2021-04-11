@@ -31,7 +31,7 @@ size_t Node::GetSize() const
     {
         assert(m_index);
     }
-    return m_is_leaf ? m_leaf->m_cur_count : m_index->m_cur_count;
+    return m_is_leaf ? m_leaf->m_cur_count : m_index->m_cur_index;
 }
 
 int Node::Compare(size_t i, const char* key)

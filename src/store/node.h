@@ -1,15 +1,11 @@
 #ifndef _NODE_H_
 #define _NODE_H_
 
-#include "left.h"
+#include "leaf.h"
+#include "index.h"
 
 struct Node
 {
-    bool m_is_leaf;
-    IndexNode* m_index;
-    Leaf* m_leaf;
-    size_t m_record_max_size;
-
     /*
      * @brief constructor of node
      * @param is_leaf leaf node or not
@@ -22,7 +18,7 @@ struct Node
     size_t GetSize() const;
     /*
      * @brief compare the key with the key of data[i]
-     * @return if key > data[i]'s key, return true
+     * @return strcmp
      */
     int Compare(size_t i, const char* key);
     /*
@@ -37,6 +33,11 @@ struct Node
     IndexNode* GetIndex() const;
 
     size_t FindPos(const char* key);
+
+    bool m_is_leaf;
+    IndexNode* m_index;
+    Leaf* m_leaf;
+    size_t m_record_max_size;
 };
 
 #endif

@@ -16,7 +16,7 @@ void Test()
 
 void Test2()
 {
-    BPTree tree("test", 3);
+    BPTree tree("test", 2);
     tree.Insert("00", "0", 1);
     tree.Insert("05", "5", 1);
     tree.Insert("15", "15", 2);

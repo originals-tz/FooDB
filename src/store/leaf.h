@@ -64,7 +64,7 @@ struct Leaf
     Record* Insert(size_t index, const char* key, const void* data, size_t data_size);
 
     /*
-     * @brief set m_cur_count = size
+     * @brief set m_cur_index = size
      **/
     void Resize(size_t size);
 
@@ -75,28 +75,5 @@ struct Leaf
     char m_records[];
 };
 
-struct IndexNodeData
-{
-    std::string m_key;
-};
-
-struct IndexNode
-{
-    IndexNode(size_t m_max_record_size)
-    {
-        m_nodes = new IndexNodeData[m_max_record_size];
-        m_next = new Node*[m_max_record_size + 1];
-    }
-
-    ~IndexNode()
-    {
-        delete[] m_nodes;
-        delete[] m_next;
-    }
-
-    size_t m_cur_count{};
-    IndexNodeData* m_nodes;
-    Node** m_next;
-};
 
 #endif
