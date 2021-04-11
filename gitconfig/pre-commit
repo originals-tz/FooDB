@@ -1,3 +1,0 @@
-#!/bin/sh
-git-clang-format `git diff --name-only`
-git add `git diff --name-only`

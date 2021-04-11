@@ -3,28 +3,27 @@
 #include <cstring>
 #include <utility>
 
-#include "util/macro.h"
-#include "util/trace.h"
+#include "macro.h"
+#include "trace.h"
 
-BPTree::BPTree(std::string  filename)
+BPTree::BPTree(std::string filename, size_t record_max_size)
     : m_file(std::move(filename))
+    , m_record_max_size(record_max_size)
     , m_root(nullptr)
 {
 }
 
 bool BPTree::Insert(const std::string& key, const void* value, size_t size)
 {
-    Require(key.size(), false, Trace("Insert: key is empty."))
-    if (!m_root)
+    Require(key.size(), false, Trace("Insert: key is empty.")) if (!m_root)
     {
-        m_root = new Node(true);
+        m_root = new Node(true, m_record_max_size);
         m_root->GetLeaf()->AddRecord(key.c_str(), value, size);
         return true;
     }
-    Node *cursor = nullptr, *parent = nullptr;
-    std::tie(cursor, parent) = FindLeaf(key);
+    auto [cursor, parent] = FindLeaf(key);
 
-    if (cursor->GetSize() < DataConf::GetInstance()->m_max_size)
+    if (cursor->GetSize() < m_record_max_size)
     {
         AddRecord(cursor, key, value, size);
         return true;
@@ -36,7 +35,7 @@ bool BPTree::Insert(const std::string& key, const void* value, size_t size)
     {
         return InsertInternal(new_leaf->GetRecord(0)->GetKey(), parent, new_leaf_node);
     }
-    Node* new_root = new Node(false);
+    Node* new_root = new Node(false, m_record_max_size);
     new_root->GetIndex()->m_nodes[0].m_key = new_leaf->GetRecord(0)->GetKey();
     new_root->GetIndex()->m_next[0] = cursor;
     new_root->GetIndex()->m_next[1] = new_leaf_node;
@@ -49,22 +48,20 @@ Node* BPTree::SplitLeafNode(Node* cursor, const char* key, const void* value, si
 {
     // add a new leaf
     Leaf* old_leaf = cursor->GetLeaf();
-    Node* new_leaf_node = new Node(true);
+    Node* new_leaf_node = new Node(true, m_record_max_size);
     Leaf* new_leaf = new_leaf_node->GetLeaf();
 
     // split the leaf node
     size_t i = cursor->FindPos(key);
-    size_t border = (DataConf::GetInstance()->m_max_size + 1) / 2;
-    for (size_t x = border; x < DataConf::GetInstance()->m_max_size; x++)
+    size_t border = (m_record_max_size + 1) / 2;
+    for (size_t x = border; x < m_record_max_size; x++)
     {
         new_leaf->AddRecord(old_leaf->GetRecord(x));
     }
     old_leaf->Resize(border);
-    {
-        size_t pos = i < border ? i : i - border;
-        Leaf* tmp = i < border ? old_leaf : new_leaf;
-        tmp->Insert(pos, key, value, size);
-    }
+    size_t pos = i < border ? i : i - border;
+    Leaf* tmp = i < border ? old_leaf : new_leaf;
+    tmp->Insert(pos, key, value, size);
     new_leaf->m_next_leaf = old_leaf->m_next_leaf;
     old_leaf->m_next_leaf = new_leaf_node;
     return new_leaf_node;
@@ -105,11 +102,8 @@ void BPTree::AddRecord(Node* cursor, const std::string& key, const void* value, 
 
 bool BPTree::InsertInternal(const std::string& key, Node* cursor, Node* child)
 {
-    Require(key.size(), false, Trace("InsertInternal: key is empty."))
-    Require(cursor, false, Trace("InsertInternal: insert into a null node."))
-    Require(child, false, Trace("InsertInternal: insert a null node."))
-    Trace("insert internal node");
-    if (cursor->GetSize() < DataConf::GetInstance()->m_max_size)
+    Require(key.size(), false, Trace("InsertInternal: key is empty.")) Require(cursor, false, Trace("InsertInternal: insert into a null node.")) Require(child, false, Trace("InsertInternal: insert a null node.")) Trace("insert internal node");
+    if (cursor->GetSize() < m_record_max_size)
     {
         size_t i = cursor->FindPos(key.c_str());
         IndexNode* index_node = cursor->GetIndex();
@@ -123,14 +117,14 @@ bool BPTree::InsertInternal(const std::string& key, Node* cursor, Node* child)
         index_node->m_cur_count++;
         return true;
     }
-    Node* new_internal_node = new Node(false);
+    Node* new_internal_node = new Node(false, m_record_max_size);
     IndexNode* new_index = new_internal_node->GetIndex();
     IndexNode* old_index = cursor->GetIndex();
     size_t new_pos = cursor->FindPos(key.c_str());
-    size_t border = (DataConf::GetInstance()->m_max_size + 1) / 2;
-    for (size_t count = DataConf::GetInstance()->m_max_size - border, k = 1; count >= 0; count--, k++)
+    size_t border = (m_record_max_size + 1) / 2;
+    for (size_t count = m_record_max_size - border, k = 1; count >= 0; count--, k++)
     {
-        if (DataConf::GetInstance()->m_max_size <= 1)
+        if (m_record_max_size <= 1)
         {
             break;
         }
@@ -142,7 +136,7 @@ bool BPTree::InsertInternal(const std::string& key, Node* cursor, Node* child)
             }
             else
             {
-                new_index->m_next[0] = old_index->m_next[DataConf::GetInstance()->m_max_size + 1 - k];
+                new_index->m_next[0] = old_index->m_next[m_record_max_size + 1 - k];
             }
             break;
         }
@@ -154,8 +148,8 @@ bool BPTree::InsertInternal(const std::string& key, Node* cursor, Node* child)
             k--;
             continue;
         }
-        new_index->m_nodes[count - 1].m_key = old_index->m_nodes[DataConf::GetInstance()->m_max_size - k].m_key;
-        new_index->m_next[count] = old_index->m_next[DataConf::GetInstance()->m_max_size + 1 - k];
+        new_index->m_nodes[count - 1].m_key = old_index->m_nodes[m_record_max_size - k].m_key;
+        new_index->m_next[count] = old_index->m_next[m_record_max_size + 1 - k];
         new_index->m_cur_count++;
     }
     old_index->m_cur_count = border;
@@ -176,7 +170,7 @@ bool BPTree::InsertInternal(const std::string& key, Node* cursor, Node* child)
         return InsertInternal(cursor->GetIndex()->m_nodes[cursor->GetSize()].m_key, FindParent(m_root, cursor), new_internal_node);
     }
 
-    Node* new_root = new Node(false);
+    Node* new_root = new Node(false, m_record_max_size);
     new_root->GetIndex()->m_nodes[0].m_key = cursor->GetIndex()->m_nodes[cursor->GetSize()].m_key;
     new_root->GetIndex()->m_next[0] = cursor;
     new_root->GetIndex()->m_next[1] = new_internal_node;
@@ -188,11 +182,7 @@ bool BPTree::InsertInternal(const std::string& key, Node* cursor, Node* child)
 
 Node* BPTree::Delete(Node* node)
 {
-    Require(node, nullptr, Trace("Delete: try to delete empty node!"))
-    if (node->m_is_leaf)
-    {
-        free(node->GetLeaf());
-    }
+    Require(node, nullptr, Trace("Delete: try to delete empty node!")) if (node->m_is_leaf) { free(node->GetLeaf()); }
     else
     {
         for (size_t i = 0; i <= node->GetSize(); i++)
@@ -228,9 +218,7 @@ BPTree::~BPTree()
 
 void BPTree::Traverse(Node* node)
 {
-    Require(m_root, , Trace("Tree is empty."))
-    Require(node, , Trace("Traverse: traverse from an empty node."))
-    node->m_is_leaf ? TraverseLeaf(node) : TraverseIndex(node);
+    Require(m_root, , Trace("Tree is empty.")) Require(node, , Trace("Traverse: traverse from an empty node.")) node->m_is_leaf ? TraverseLeaf(node) : TraverseIndex(node);
 }
 
 void BPTree::TraverseLeaf(Node* leaf_node)

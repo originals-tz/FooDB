@@ -2,7 +2,7 @@
 
 #include <cstring>
 
-#include "util/macro.h"
+#include "macro.h"
 
 Record::Record()
     : m_key_size(0)
@@ -33,7 +33,7 @@ void Record::Init(size_t key_size, size_t data_size, char* raw)
 void Record::SetKey(const std::string& key)
 {
     assert(m_key && m_key_size && "record not init");
-    assert(key.size() + 1 <= m_key_size &&"key size is too big");
+    assert(key.size() + 1 <= m_key_size && "key size is too big");
 
     strncpy(m_key, key.c_str(), key.size() + 1);
 }

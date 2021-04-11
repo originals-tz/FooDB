@@ -1,19 +1,20 @@
 #ifndef _NODE_H_
 #define _NODE_H_
 
-#include "sub_node.h"
+#include "left.h"
 
 struct Node
 {
     bool m_is_leaf;
     IndexNode* m_index;
     Leaf* m_leaf;
+    size_t m_record_max_size;
 
     /*
      * @brief constructor of node
      * @param is_leaf leaf node or not
      */
-    explicit Node(bool is_leaf);
+    explicit Node(bool is_leaf, size_t record_max_size);
     /*
      * @brief get the size of data
      * @return size of data

@@ -1,11 +1,11 @@
 #include <cstring>
 #include <memory>
 #include "store/bptree.h"
-#include "util/trace.h"
+#include "store/trace.h"
 
 void Test()
 {
-    BPTree tree("test");
+    BPTree tree("test", 3);
     tree.Traverse(tree.GetRoot());
 
     tree.Insert("test", "hhh", 3);
@@ -16,7 +16,7 @@ void Test()
 
 void Test2()
 {
-    BPTree tree("test");
+    BPTree tree("test", 3);
     tree.Insert("00", "0", 1);
     tree.Insert("05", "5", 1);
     tree.Insert("15", "15", 2);
@@ -52,7 +52,6 @@ void Test2()
 
 int main()
 {
-     DataConf::GetInstance()->m_max_size = 3;
     Test();
     Test2();
     return 0;

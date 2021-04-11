@@ -12,7 +12,7 @@ public:
      * @brief constructor of bptree
      * @param filename of bptree
      */
-    explicit BPTree(std::string  filename);
+    explicit BPTree(std::string filename, size_t record_max_size);
 
     /*
      * @brief insert a leaf node
@@ -81,17 +81,18 @@ private:
      * @param size  value size
      */
     void AddRecord(Node* cur, const std::string& key, const void* value, size_t size);
-     /**
-      * @brief split the leaf node and insert data
-      * @param cur node will be split
-      * @param key data key
-      * @param value data value
-      * @param size value size
-      * @return new node
-      */
+    /**
+     * @brief split the leaf node and insert data
+     * @param cur node will be split
+     * @param key data key
+     * @param value data value
+     * @param size value size
+     * @return new node
+     */
     Node* SplitLeafNode(Node* cur, const char* key, const void* value, size_t size);
 
     std::string m_file;
+    size_t m_record_max_size;
     Node* m_root;
 };
 

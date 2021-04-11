@@ -2,21 +2,22 @@
 
 #include <cstring>
 
-#include "util/macro.h"
-#include "util/trace.h"
+#include "macro.h"
+#include "trace.h"
 
-Node::Node(bool is_leaf)
+Node::Node(bool is_leaf, size_t record_max_size)
     : m_is_leaf(is_leaf)
     , m_index(nullptr)
     , m_leaf(nullptr)
+    , m_record_max_size(record_max_size)
 {
     if (m_is_leaf)
     {
-        m_leaf = Leaf::Alloc(DataConf::GetInstance()->m_max_size, 10, 10);
+        m_leaf = Leaf::Alloc(m_record_max_size, 10, 10);
     }
     else
     {
-        m_index = new IndexNode();
+        m_index = new IndexNode(m_record_max_size);
     }
 }
 
@@ -54,7 +55,8 @@ size_t Node::FindPos(const char* key)
 {
     assert(key && "key is nullptr");
     size_t i = 0;
-    for (; i < GetSize() && Compare(i, key) > 0; i++);
+    for (; i < GetSize() && Compare(i, key) > 0; i++)
+        ;
     Trace(key, " pos =", i);
     return i;
 }

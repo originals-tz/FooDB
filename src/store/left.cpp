@@ -1,9 +1,9 @@
-#include "sub_node.h"
+#include "left.h"
 
 #include <cstring>
 
-#include "util/macro.h"
-#include "util/trace.h"
+#include "macro.h"
+#include "trace.h"
 
 Leaf::Leaf()
     : m_record_size(0)
@@ -22,8 +22,7 @@ Leaf* Leaf::Alloc(size_t record_size, size_t key_size, size_t data_size)
     bzero(raw, raw_size);
 
     Leaf* leaf = new (raw) Leaf();
-    Require(leaf != nullptr, nullptr, Trace("malloc error"))
-    InitLeaf(leaf, record_size, key_size, data_size);
+    Require(leaf != nullptr, nullptr, Trace("malloc error")) InitLeaf(leaf, record_size, key_size, data_size);
     return leaf;
 }
 
@@ -52,8 +51,7 @@ void Leaf::InitLeaf(Leaf* leaf, size_t record_count, size_t key_size, size_t dat
 
 bool Leaf::AddRecord(const char* key, const void* data, size_t data_size)
 {
-    Require(IsFull() == false, false, Trace("is full"))
-    GetRecord(m_cur_count)->SetKey(key);
+    Require(IsFull() == false, false, Trace("is full")) GetRecord(m_cur_count)->SetKey(key);
     GetRecord(m_cur_count)->SetData(data, data_size);
     m_cur_count++;
     return true;
@@ -71,8 +69,7 @@ bool Leaf::IsFull() const
 
 Record* Leaf::GetRecord(size_t index)
 {
-    Require(index < m_record_count, nullptr, Trace("Leaf GetRecord : out of index"))
-    return reinterpret_cast<Record*>(m_records + index * m_record_size);
+    Require(index < m_record_count, nullptr, Trace("Leaf GetRecord : out of index")) return reinterpret_cast<Record*>(m_records + index * m_record_size);
 }
 
 size_t Leaf::Size() const
@@ -86,7 +83,7 @@ Record* Leaf::Insert(size_t index, const char* key, const void* data, size_t dat
     assert(key && "key is nullptr");
     Require(IsFull() == false, nullptr, Trace("leaf is full, fail to insert"))
 
-    if (index >= m_cur_count)
+        if (index >= m_cur_count)
     {
         m_cur_count++;
         GetRecord(index)->SetKey(key);
@@ -108,6 +105,5 @@ Record* Leaf::Insert(size_t index, const char* key, const void* data, size_t dat
 
 void Leaf::Resize(size_t size)
 {
-    Require(size < m_record_count, , )
-    m_cur_count = size;
+    Require(size < m_record_count, , ) m_cur_count = size;
 }

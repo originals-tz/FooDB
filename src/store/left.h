@@ -4,31 +4,6 @@
 
 struct Node;
 
-struct DataConf
-{
-    static DataConf* GetInstance()
-    {
-        static DataConf conf;
-        return &conf;
-    }
-
-    DataConf()
-        : m_max_size(3)
-    {
-    }
-
-    void SetMaxSize(size_t size)
-    {
-        if (!(size & (unsigned)1))
-        {
-            size++;
-        }
-        m_max_size = size;
-    }
-
-    size_t m_max_size;
-};
-
 struct Leaf
 {
     Leaf();
@@ -107,10 +82,10 @@ struct IndexNodeData
 
 struct IndexNode
 {
-    IndexNode()
+    IndexNode(size_t m_max_record_size)
     {
-        m_nodes = new IndexNodeData[DataConf::GetInstance()->m_max_size];
-        m_next = new Node*[DataConf::GetInstance()->m_max_size + 1];
+        m_nodes = new IndexNodeData[m_max_record_size];
+        m_next = new Node*[m_max_record_size + 1];
     }
 
     ~IndexNode()
