@@ -6,7 +6,7 @@
 void Test()
 {
     BPTree tree("test", 3);
-    tree.Traverse(tree.GetRoot());
+    // tree.Traverse(tree.GetRoot());
 
     tree.Insert("test", "hhh", 3);
     tree.Insert("test", "hello", 5);
@@ -50,7 +50,6 @@ void Test2()
     }
     Trace("delete all");
     tree.DeleteIndexNode(tree.GetRoot());
-    tree.Traverse(tree.GetRoot());
 }
 
 int main()

@@ -1,9 +1,8 @@
 #include "node.h"
 
+#include <fmt/format.h>
+#include <cassert>
 #include <cstring>
-
-#include "macro.h"
-#include "trace.h"
 
 Node::Node(bool is_leaf, size_t record_max_size)
     : m_is_leaf(is_leaf)
@@ -57,6 +56,6 @@ size_t Node::FindPos(const char* key)
     size_t i = 0;
     for (; i < GetSize() && Compare(i, key) > 0; i++)
         ;
-    Trace(key, " pos =", i);
+    fmt::println(key, " pos ={}", i);
     return i;
 }

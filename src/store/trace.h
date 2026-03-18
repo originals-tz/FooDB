@@ -5,8 +5,6 @@
 #include <mutex>
 #include <sstream>
 
-#include "macro.h"
-
 namespace util
 {
 struct Output

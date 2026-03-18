@@ -1,8 +1,7 @@
 #include "record.h"
 
+#include <assert.h>
 #include <cstring>
-
-#include "macro.h"
 
 Record::Record()
     : m_key_size(0)

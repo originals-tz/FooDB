@@ -1,10 +1,9 @@
 #include "bptree.h"
 
+#include <fmt/format.h>
+#include <cassert>
 #include <cstring>
 #include <utility>
-
-#include "macro.h"
-#include "trace.h"
 
 BPTree::BPTree(std::string filename, size_t node_size)
     : m_file(std::move(filename))
@@ -21,7 +20,7 @@ BPTree::~BPTree()
 
 bool BPTree::Insert(const std::string& key, const void* value, size_t size)
 {
-    Require(key.size(), false, Trace("Insert: key is empty."));
+    assert(!key.empty() && "Insert: key is empty.");
     // 如果根节点为空，那么新建根节点
     if (!m_root)
     {
@@ -29,9 +28,9 @@ bool BPTree::Insert(const std::string& key, const void* value, size_t size)
         m_root->GetLeaf()->AddRecord(key.c_str(), value, size);
         return true;
     }
-    //寻找合适的叶子节点存储数据
+    // 寻找合适的叶子节点存储数据
     auto [cursor, parent] = FindLeaf(key);
-    //如果叶子节点未满。那么直接存放
+    // 如果叶子节点未满。那么直接存放
     if (cursor->GetSize() < m_record_max_size)
     {
         AddRecord(cursor, key, value, size);
@@ -41,13 +40,13 @@ bool BPTree::Insert(const std::string& key, const void* value, size_t size)
     Node* new_leaf_node = SplitLeafNode(cursor, key.c_str(), value, size);
     Leaf* new_leaf = new_leaf_node->GetLeaf();
 
-    //分裂后，cursor是旧节点，new_leaf是新节点
-    //如果存在父节点，那么将new_left放到parent下
+    // 分裂后，cursor是旧节点，new_leaf是新节点
+    // 如果存在父节点，那么将new_left放到parent下
     if (parent)
     {
         return InsertInternal(new_leaf->GetRecord(0)->GetKey(), parent, new_leaf_node);
     }
-    //如果不存在，那么新建一个root节点
+    // 如果不存在，那么新建一个root节点
     Node* new_root = new Node(false, m_record_max_size);
     new_root->GetIndex()->m_nodes[0].m_key = new_leaf->GetRecord(0)->GetKey();
     new_root->GetIndex()->m_next[0] = cursor;
@@ -59,8 +58,8 @@ bool BPTree::Insert(const std::string& key, const void* value, size_t size)
 
 void BPTree::Traverse(Node* node)
 {
-    Require(m_root, , Trace("Tree is empty."));
-    Require(node, , Trace("Traverse: traverse from an empty node."));
+    assert(m_root && "Tree is empty.");
+    assert(node && "Traverse: traverse from an empty node.");
     node->m_is_leaf ? TraverseLeaf(node) : TraverseIndex(node);
 }
 
@@ -68,12 +67,12 @@ void BPTree::TraverseLeaf(Node* leaf_node)
 {
     assert(leaf_node && leaf_node->m_is_leaf && "nullptr or isn't leaf");
     Leaf* leaf = leaf_node->GetLeaf();
-    Trace("leaf node, size = ", leaf->m_cur_count);
+    fmt::println("leaf node, size = {}", leaf->m_cur_count);
     for (size_t i = 0; i < leaf->m_cur_count; i++)
     {
         Data data = leaf->GetRecord(i)->GetData();
         std::string str_data(data.m_data, data.m_data_size);
-        Trace(str_data);
+        fmt::println(str_data);
     }
 }
 
@@ -81,7 +80,7 @@ void BPTree::TraverseIndex(Node* index_node)
 {
     assert(index_node && !index_node->m_is_leaf && "nullptr or isn't index");
     IndexNode* index = index_node->GetIndex();
-    Trace("traverse index, size=", index->m_cur_index);
+    fmt::println("traverse index, size={}", index->m_cur_index);
     for (size_t i = 0; i <= index->m_cur_index; i++)
     {
         Traverse(index->m_next[i]);
@@ -119,7 +118,6 @@ std::optional<Data> BPTree::Search(const std::string& key)
         {
             if (cursor->GetLeaf()->GetRecord(i)->GetKey() == key)
             {
-                Trace("found");
                 data = cursor->GetLeaf()->GetRecord(i)->GetData();
             }
         }
@@ -141,14 +139,13 @@ Node* BPTree::GetRoot()
     return m_root;
 }
 
-
 bool BPTree::InsertInternal(const std::string& key, Node* cursor, Node* child)
 {
-    //分裂索引节点, 索引节点的node和next数组长度不一致，因此，需要对index=0的情况进行判断，其余逻辑和分裂叶子节点一致
-    Require(key.size(), false, Trace("InsertInternal: key is empty."));
-    Require(cursor, false, Trace("InsertInternal: insert into a null node."));
-    Require(child, false, Trace("InsertInternal: insert a null node."));
-    Trace("insert internal node");
+    // 分裂索引节点, 索引节点的node和next数组长度不一致，因此，需要对index=0的情况进行判断，其余逻辑和分裂叶子节点一致
+    assert(key.size() && "InsertInternal: key is empty.");
+    assert(cursor && "InsertInternal: insert into a null node.");
+    assert(child && "InsertInternal: insert a null node.");
+    fmt::println("insert internal node");
     if (cursor->GetSize() < m_record_max_size)
     {
         size_t i = cursor->FindPos(key.c_str());
@@ -172,9 +169,7 @@ bool BPTree::InsertInternal(const std::string& key, Node* cursor, Node* child)
     {
         if (index == 0)
         {
-            new_index->m_next[0] = (border == new_pos) ?
-                                   child :
-                                   old_index->m_next[m_record_max_size + 1 - k];
+            new_index->m_next[0] = (border == new_pos) ? child : old_index->m_next[m_record_max_size + 1 - k];
             break;
         }
 
@@ -221,8 +216,8 @@ bool BPTree::InsertInternal(const std::string& key, Node* cursor, Node* child)
 
 Node* BPTree::FindParent(Node* cursor, Node* child)
 {
-    Require(cursor, nullptr, Trace("FindParent: Find a child from a null node."));
-    Require(child, nullptr, Trace("FindParent: Want find a null node's parent."));
+    assert(cursor && "FindParent: Find a child from a null node.");
+    assert(child && "FindParent: Want find a null node's parent.");
     Node* parent;
     if (cursor->m_is_leaf || (cursor->GetIndex()->m_next[0]->m_is_leaf))
     {
@@ -244,7 +239,6 @@ Node* BPTree::FindParent(Node* cursor, Node* child)
     }
     return parent;
 }
-
 
 std::pair<Node*, Node*> BPTree::FindLeaf(const std::string& key)
 {
@@ -284,7 +278,6 @@ void BPTree::AddRecord(Node* cursor, const std::string& key, const void* value, 
     leaf->Insert(pos, key.c_str(), value, size);
 }
 
-
 Node* BPTree::SplitLeafNode(Node* cursor, const char* key, const void* value, size_t size)
 {
     // add a new leaf
@@ -315,7 +308,7 @@ Node* BPTree::SplitLeafNode(Node* cursor, const char* key, const void* value, si
 
 Node* BPTree::DeleteNode(Node* node)
 {
-    Require(node, nullptr, Trace("Delete: try to delete empty node!"));
+    assert(node && "Delete: try to delete empty node!");
     if (node->m_is_leaf)
     {
         free(node->GetLeaf());
@@ -342,5 +335,3 @@ Node* BPTree::DeleteNode(Node* node)
     }
     return node;
 }
-
-
