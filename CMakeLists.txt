@@ -11,6 +11,7 @@ INCLUDE_DIRECTORIES(./src)
 
 AUX_SOURCE_DIRECTORY(./src/store Store)
 ADD_EXECUTABLE(foodb ./src/foodb.cpp ${Store})
+target_link_libraries(foodb fmt)
 
 SET(CMAKE_CXX_FLAGS "$ENV{CXXFLAGS} -O0 -Wall -g2 -ggdb")
 AUX_SOURCE_DIRECTORY(./test TEST)

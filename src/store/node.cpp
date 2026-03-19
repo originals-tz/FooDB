@@ -1,61 +1,34 @@
 #include "node.h"
 
-#include <fmt/format.h>
 #include <cassert>
 #include <cstring>
 
-Node::Node(bool is_leaf, size_t record_max_size)
+Node::Node(bool is_leaf, size_t record_max_size, uint64_t page_id)
     : m_is_leaf(is_leaf)
-    , m_index(nullptr)
-    , m_leaf(nullptr)
+    , m_page_id(page_id)
+    , m_parent_page_id(0)
     , m_record_max_size(record_max_size)
+    , m_next_leaf(nullptr)
 {
-    if (m_is_leaf)
-    {
-        m_leaf = Leaf::Alloc(m_record_max_size, 10, 10);
-    }
-    else
-    {
-        m_index = new IndexNode(m_record_max_size);
-    }
 }
 
 size_t Node::GetSize() const
 {
-    if (m_is_leaf)
-    {
-        assert(m_is_leaf && m_leaf);
-    }
-    else
-    {
-        assert(m_index);
-    }
-    return m_is_leaf ? m_leaf->m_cur_count : m_index->m_cur_index;
+    return m_keys.size();
 }
 
-int Node::Compare(size_t i, const char* key)
+int Node::Compare(size_t i, const char* key) const
 {
     assert(key && "key is nullptr");
-    const char* record_key = m_is_leaf ? GetLeaf()->GetRecord(i)->GetKey() : GetIndex()->m_nodes[i].m_key.c_str();
-    return std::strcmp(key, record_key);
+    assert(i < m_keys.size() && "compare index out of range");
+    return std::strcmp(key, m_keys[i].c_str());
 }
 
-Leaf* Node::GetLeaf() const
-{
-    return m_leaf;
-}
-
-IndexNode* Node::GetIndex() const
-{
-    return m_index;
-}
-
-size_t Node::FindPos(const char* key)
+size_t Node::FindPos(const char* key) const
 {
     assert(key && "key is nullptr");
-    size_t i = 0;
-    for (; i < GetSize() && Compare(i, key) > 0; i++)
+    size_t pos = 0;
+    for (; pos < m_keys.size() && std::strcmp(m_keys[pos].c_str(), key) < 0; ++pos)
         ;
-    fmt::println(key, " pos ={}", i);
-    return i;
+    return pos;
 }

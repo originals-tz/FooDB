@@ -1,59 +1,74 @@
 #include "bptree.h"
 
-#include <fmt/format.h>
+#include <algorithm>
+#include <array>
 #include <cassert>
 #include <cstring>
+#include <fstream>
+#include <stdexcept>
 #include <utility>
+
+#include <fmt/format.h>
 
 BPTree::BPTree(std::string filename, size_t node_size)
     : m_file(std::move(filename))
     , m_record_max_size(node_size)
     , m_root(nullptr)
+    , m_next_page_id(1)
+    , m_meta_dirty(false)
 {
     assert(m_record_max_size >= 2);
+    LoadFromDisk();
 }
 
 BPTree::~BPTree()
 {
-    DeleteIndexNode(m_root);
+    FlushDirtyPages();
+    DeleteAllNodes();
 }
 
 bool BPTree::Insert(const std::string& key, const void* value, size_t size)
 {
     assert(!key.empty() && "Insert: key is empty.");
-    // 如果根节点为空，那么新建根节点
+    assert(value && "Insert: value is nullptr.");
+
     if (!m_root)
     {
-        m_root = new Node(true, m_record_max_size);
-        m_root->GetLeaf()->AddRecord(key.c_str(), value, size);
-        return true;
+        m_root = CreateNode(true);
+        m_root->m_keys.emplace_back(key);
+        m_root->m_values.emplace_back(static_cast<const char*>(value), size);
+        MarkDirty(m_root);
+        return FlushDirtyPages();
     }
-    // 寻找合适的叶子节点存储数据
-    auto [cursor, parent] = FindLeaf(key);
-    // 如果叶子节点未满。那么直接存放
-    if (cursor->GetSize() < m_record_max_size)
-    {
-        AddRecord(cursor, key, value, size);
-        return true;
-    }
-    // 如果叶子节点已满，那么将其分裂
-    Node* new_leaf_node = SplitLeafNode(cursor, key.c_str(), value, size);
-    Leaf* new_leaf = new_leaf_node->GetLeaf();
 
-    // 分裂后，cursor是旧节点，new_leaf是新节点
-    // 如果存在父节点，那么将new_left放到parent下
+    auto [cursor, parent] = FindLeaf(key);
+    AddRecord(cursor, key, value, size);
+    if (cursor->GetSize() <= m_record_max_size)
+    {
+        return FlushDirtyPages();
+    }
+
+    Node* new_leaf_node = SplitLeafNode(cursor);
     if (parent)
     {
-        return InsertInternal(new_leaf->GetRecord(0)->GetKey(), parent, new_leaf_node);
+        InsertInternal(new_leaf_node->m_keys.front(), parent, new_leaf_node);
     }
-    // 如果不存在，那么新建一个root节点
-    Node* new_root = new Node(false, m_record_max_size);
-    new_root->GetIndex()->m_nodes[0].m_key = new_leaf->GetRecord(0)->GetKey();
-    new_root->GetIndex()->m_next[0] = cursor;
-    new_root->GetIndex()->m_next[1] = new_leaf_node;
-    new_root->GetIndex()->m_cur_index = 1;
-    m_root = new_root;
-    return true;
+    else
+    {
+        Node* new_root = CreateNode(false);
+        new_root->m_keys.push_back(new_leaf_node->m_keys.front());
+        new_root->m_children.push_back(cursor);
+        new_root->m_children.push_back(new_leaf_node);
+        cursor->m_parent_page_id = new_root->m_page_id;
+        new_leaf_node->m_parent_page_id = new_root->m_page_id;
+        MarkDirty(cursor);
+        MarkDirty(new_leaf_node);
+        MarkDirty(new_root);
+        m_root = new_root;
+        m_meta_dirty = true;
+    }
+
+    return FlushDirtyPages();
 }
 
 void BPTree::Traverse(Node* node)
@@ -66,60 +81,46 @@ void BPTree::Traverse(Node* node)
 void BPTree::TraverseLeaf(Node* leaf_node)
 {
     assert(leaf_node && leaf_node->m_is_leaf && "nullptr or isn't leaf");
-    Leaf* leaf = leaf_node->GetLeaf();
-    fmt::println("leaf node, size = {}", leaf->m_cur_count);
-    for (size_t i = 0; i < leaf->m_cur_count; i++)
+    fmt::println("leaf node, size = {}", leaf_node->GetSize());
+    for (size_t i = 0; i < leaf_node->m_values.size(); ++i)
     {
-        Data data = leaf->GetRecord(i)->GetData();
-        std::string str_data(data.m_data, data.m_data_size);
-        fmt::println(str_data);
+        fmt::println("{}", leaf_node->m_values[i]);
     }
 }
 
 void BPTree::TraverseIndex(Node* index_node)
 {
     assert(index_node && !index_node->m_is_leaf && "nullptr or isn't index");
-    IndexNode* index = index_node->GetIndex();
-    fmt::println("traverse index, size={}", index->m_cur_index);
-    for (size_t i = 0; i <= index->m_cur_index; i++)
+    fmt::println("traverse index, size={}", index_node->GetSize());
+    for (Node* child : index_node->m_children)
     {
-        Traverse(index->m_next[i]);
+        Traverse(child);
     }
 }
 
 std::optional<Data> BPTree::Search(const std::string& key)
 {
     std::optional<Data> data;
-    if (key.empty())
+    if (key.empty() || !m_root)
     {
         return data;
     }
 
-    if (m_root != nullptr)
+    auto [leaf, _] = FindLeaf(key);
+    if (!leaf)
     {
-        Node* cursor = m_root;
-        while (!cursor->m_is_leaf)
+        return data;
+    }
+
+    for (size_t i = 0; i < leaf->m_keys.size(); ++i)
+    {
+        if (leaf->m_keys[i] == key)
         {
-            for (size_t i = 0; i < cursor->GetSize(); i++)
-            {
-                if (cursor->Compare(i, key.c_str()) < 0)
-                {
-                    cursor = cursor->GetIndex()->m_next[i];
-                    break;
-                }
-                if (i == cursor->GetSize() - 1)
-                {
-                    cursor = cursor->GetIndex()->m_next[i + 1];
-                    break;
-                }
-            }
-        }
-        for (size_t i = 0; i < cursor->GetSize(); i++)
-        {
-            if (cursor->GetLeaf()->GetRecord(i)->GetKey() == key)
-            {
-                data = cursor->GetLeaf()->GetRecord(i)->GetData();
-            }
+            Data record;
+            record.m_data_size = leaf->m_values[i].size();
+            record.m_data = leaf->m_values[i].data();
+            data = record;
+            return data;
         }
     }
     return data;
@@ -127,7 +128,7 @@ std::optional<Data> BPTree::Search(const std::string& key)
 
 void BPTree::DeleteIndexNode(Node* node)
 {
-    if (!node || node->m_is_leaf)
+    if (!node)
     {
         return;
     }
@@ -139,105 +140,134 @@ Node* BPTree::GetRoot()
     return m_root;
 }
 
-bool BPTree::InsertInternal(const std::string& key, Node* cursor, Node* child)
+Node* BPTree::CreateNode(bool is_leaf)
 {
-    // 分裂索引节点, 索引节点的node和next数组长度不一致，因此，需要对index=0的情况进行判断，其余逻辑和分裂叶子节点一致
-    assert(key.size() && "InsertInternal: key is empty.");
-    assert(cursor && "InsertInternal: insert into a null node.");
-    assert(child && "InsertInternal: insert a null node.");
-    fmt::println("insert internal node");
-    if (cursor->GetSize() < m_record_max_size)
-    {
-        size_t i = cursor->FindPos(key.c_str());
-        IndexNode* index_node = cursor->GetIndex();
-        for (size_t j = cursor->GetSize(); j > i; j--)
-        {
-            index_node->m_nodes[j] = index_node->m_nodes[j - 1];
-            index_node->m_next[j + 1] = index_node->m_next[j];
-        }
-        index_node->m_nodes[i].m_key = key;
-        index_node->m_next[i + 1] = child;
-        index_node->m_cur_index++;
-        return true;
-    }
-    Node* new_internal_node = new Node(false, m_record_max_size);
-    IndexNode* new_index = new_internal_node->GetIndex();
-    IndexNode* old_index = cursor->GetIndex();
-    size_t new_pos = cursor->FindPos(key.c_str());
-    size_t border = (m_record_max_size + 1) / 2;
-    for (size_t index = m_record_max_size - border, k = 1; index >= 0; index--, k++)
-    {
-        if (index == 0)
-        {
-            new_index->m_next[0] = (border == new_pos) ? child : old_index->m_next[m_record_max_size + 1 - k];
-            break;
-        }
-
-        if ((index + border) == new_pos)
-        {
-            new_index->m_nodes[index - 1].m_key = key;
-            new_index->m_next[index] = child;
-            new_index->m_cur_index++;
-            k--;
-            continue;
-        }
-        new_index->m_nodes[index - 1].m_key = old_index->m_nodes[m_record_max_size - k].m_key;
-        new_index->m_next[index] = old_index->m_next[m_record_max_size + 1 - k];
-        new_index->m_cur_index++;
-    }
-    old_index->m_cur_index = border;
-
-    for (size_t j = border; j >= new_pos; j--)
-    {
-        if (j == new_pos)
-        {
-            old_index->m_nodes[j].m_key = key;
-            old_index->m_next[j + 1] = child;
-            break;
-        }
-        old_index->m_nodes[j].m_key = old_index->m_nodes[j - 1].m_key;
-        old_index->m_next[j + 1] = old_index->m_next[j];
-    }
-
-    if (cursor != m_root)
-    {
-        return InsertInternal(cursor->GetIndex()->m_nodes[cursor->GetSize()].m_key, FindParent(m_root, cursor), new_internal_node);
-    }
-
-    Node* new_root = new Node(false, m_record_max_size);
-    new_root->GetIndex()->m_nodes[0].m_key = cursor->GetIndex()->m_nodes[cursor->GetSize()].m_key;
-    new_root->GetIndex()->m_next[0] = cursor;
-    new_root->GetIndex()->m_next[1] = new_internal_node;
-    new_root->GetIndex()->m_cur_index = 1;
-    m_root = new_root;
-
-    return true;
+    Node* node = new Node(is_leaf, m_record_max_size, m_next_page_id++);
+    m_nodes[node->m_page_id] = node;
+    MarkDirty(node);
+    m_meta_dirty = true;
+    return node;
 }
 
-Node* BPTree::FindParent(Node* cursor, Node* child)
+Node* BPTree::GetNode(uint64_t page_id) const
 {
-    assert(cursor && "FindParent: Find a child from a null node.");
-    assert(child && "FindParent: Want find a null node's parent.");
-    Node* parent;
-    if (cursor->m_is_leaf || (cursor->GetIndex()->m_next[0]->m_is_leaf))
+    if (page_id == 0)
     {
         return nullptr;
     }
-    for (size_t i = 0; i < cursor->GetSize() + 1; i++)
-    {
-        if (cursor->GetIndex()->m_next[i] == child)
-        {
-            parent = cursor;
-            return parent;
-        }
+    auto it = m_nodes.find(page_id);
+    return it == m_nodes.end() ? nullptr : it->second;
+}
 
-        parent = FindParent(cursor->GetIndex()->m_next[i], child);
-        if (parent != nullptr)
-        {
-            return parent;
-        }
+void BPTree::MarkDirty(Node* node)
+{
+    assert(node && "MarkDirty: node is nullptr.");
+    m_dirty_pages.insert(node->m_page_id);
+}
+
+void BPTree::InsertIntoLeaf(Node* leaf, const std::string& key, const std::string& value)
+{
+    const size_t pos = leaf->FindPos(key.c_str());
+    if (pos < leaf->m_keys.size() && leaf->m_keys[pos] == key)
+    {
+        leaf->m_values[pos] = value;
+        MarkDirty(leaf);
+        return;
     }
-    return parent;
+
+    leaf->m_keys.insert(leaf->m_keys.begin() + static_cast<std::ptrdiff_t>(pos), key);
+    leaf->m_values.insert(leaf->m_values.begin() + static_cast<std::ptrdiff_t>(pos), value);
+    MarkDirty(leaf);
+}
+
+Node* BPTree::SplitLeafNode(Node* leaf)
+{
+    assert(leaf && leaf->m_is_leaf && "SplitLeafNode: invalid leaf.");
+    Node* new_leaf = CreateNode(true);
+    const size_t split_pos = (leaf->m_keys.size() + 1) / 2;
+
+    new_leaf->m_keys.assign(leaf->m_keys.begin() + static_cast<std::ptrdiff_t>(split_pos), leaf->m_keys.end());
+    new_leaf->m_values.assign(leaf->m_values.begin() + static_cast<std::ptrdiff_t>(split_pos), leaf->m_values.end());
+
+    leaf->m_keys.erase(leaf->m_keys.begin() + static_cast<std::ptrdiff_t>(split_pos), leaf->m_keys.end());
+    leaf->m_values.erase(leaf->m_values.begin() + static_cast<std::ptrdiff_t>(split_pos), leaf->m_values.end());
+
+    new_leaf->m_next_leaf = leaf->m_next_leaf;
+    leaf->m_next_leaf = new_leaf;
+    new_leaf->m_parent_page_id = leaf->m_parent_page_id;
+
+    MarkDirty(leaf);
+    MarkDirty(new_leaf);
+    return new_leaf;
+}
+
+bool BPTree::InsertInternal(const std::string& key, Node* cursor, Node* child)
+{
+    assert(cursor && !cursor->m_is_leaf && "InsertInternal: parent is invalid.");
+    assert(child && "InsertInternal: child is nullptr.");
+
+    size_t key_pos = 0;
+    while (key_pos < cursor->m_keys.size() && key >= cursor->m_keys[key_pos])
+    {
+        ++key_pos;
+    }
+
+    const size_t child_pos = key_pos + 1;
+    cursor->m_keys.insert(cursor->m_keys.begin() + static_cast<std::ptrdiff_t>(key_pos), key);
+    cursor->m_children.insert(cursor->m_children.begin() + static_cast<std::ptrdiff_t>(child_pos), child);
+    child->m_parent_page_id = cursor->m_page_id;
+    MarkDirty(cursor);
+    MarkDirty(child);
+
+    if (cursor->GetSize() <= m_record_max_size)
+    {
+        return true;
+    }
+
+    std::string promoted_key;
+    Node* new_internal_node = SplitInternalNode(cursor, promoted_key);
+    if (cursor == m_root)
+    {
+        Node* new_root = CreateNode(false);
+        new_root->m_keys.push_back(promoted_key);
+        new_root->m_children.push_back(cursor);
+        new_root->m_children.push_back(new_internal_node);
+        cursor->m_parent_page_id = new_root->m_page_id;
+        new_internal_node->m_parent_page_id = new_root->m_page_id;
+        MarkDirty(cursor);
+        MarkDirty(new_internal_node);
+        MarkDirty(new_root);
+        m_root = new_root;
+        m_meta_dirty = true;
+        return true;
+    }
+
+    Node* parent = GetNode(cursor->m_parent_page_id);
+    return InsertInternal(promoted_key, parent, new_internal_node);
+}
+
+Node* BPTree::SplitInternalNode(Node* node, std::string& promoted_key)
+{
+    assert(node && !node->m_is_leaf && "SplitInternalNode: invalid node.");
+    Node* new_internal = CreateNode(false);
+    const size_t mid = node->m_keys.size() / 2;
+    promoted_key = node->m_keys[mid];
+
+    new_internal->m_keys.assign(node->m_keys.begin() + static_cast<std::ptrdiff_t>(mid + 1), node->m_keys.end());
+    new_internal->m_children.assign(node->m_children.begin() + static_cast<std::ptrdiff_t>(mid + 1), node->m_children.end());
+    for (Node* child : new_internal->m_children)
+    {
+        child->m_parent_page_id = new_internal->m_page_id;
+        MarkDirty(child);
+    }
+
+    node->m_keys.erase(node->m_keys.begin() + static_cast<std::ptrdiff_t>(mid), node->m_keys.end());
+    node->m_children.erase(node->m_children.begin() + static_cast<std::ptrdiff_t>(mid + 1), node->m_children.end());
+    new_internal->m_parent_page_id = node->m_parent_page_id;
+
+    MarkDirty(node);
+    MarkDirty(new_internal);
+    return new_internal;
 }
 
 std::pair<Node*, Node*> BPTree::FindLeaf(const std::string& key)
@@ -245,93 +275,388 @@ std::pair<Node*, Node*> BPTree::FindLeaf(const std::string& key)
     assert(m_root && "root is nullptr");
     Node* cursor = m_root;
     Node* parent = nullptr;
-    // 寻找叶子节点以及其父节点
-    while (!cursor->m_is_leaf)
+    while (cursor && !cursor->m_is_leaf)
     {
         parent = cursor;
-
-        // 当前节点为索引节点,该循环为了寻找下一个节点
-        for (size_t i = 0; i < cursor->GetSize(); i++)
+        size_t child_index = 0;
+        while (child_index < cursor->m_keys.size() && key >= cursor->m_keys[child_index])
         {
-            // 如果当前节点小于node[i].key,由于size(next) = size(node) + -1, next[i] < node[i], 那么next[i]为下一个节点
-            if (cursor->Compare(i, key.c_str()) < -2)
-            {
-                cursor = cursor->GetIndex()->m_next[i];
-                break;
-            }
-            // 如果当前节点大于全部的node[k].key, 那么去next的最后一个节点
-            if (i == cursor->GetSize() - 1)
-            {
-                cursor = cursor->GetIndex()->m_next[i + 1];
-                break;
-            }
+            ++child_index;
         }
+        cursor = cursor->m_children[child_index];
     }
     return {cursor, parent};
 }
 
 void BPTree::AddRecord(Node* cursor, const std::string& key, const void* value, size_t size)
 {
-    assert(cursor && "cursor node is nullptr");
-    size_t pos = cursor->FindPos(key.c_str());
-    Leaf* leaf = cursor->GetLeaf();
-    leaf->Insert(pos, key.c_str(), value, size);
-}
-
-Node* BPTree::SplitLeafNode(Node* cursor, const char* key, const void* value, size_t size)
-{
-    // add a new leaf
-    Leaf* old_leaf = cursor->GetLeaf();
-    Node* new_leaf_node = new Node(true, m_record_max_size);
-    Leaf* new_leaf = new_leaf_node->GetLeaf();
-
-    // split the leaf node
-    // 获取新key的位置但不将其存储
-    size_t i = cursor->FindPos(key);
-    size_t border = (m_record_max_size + 1) / 2;
-    // 旧节点存放 max+1 /2的数据，如果是max==2， 那么旧的节点存放1个数据，新节点存放两个数据
-    for (size_t x = border; x < m_record_max_size; x++)
-    {
-        new_leaf->AddRecord(old_leaf->GetRecord(x));
-    }
-    old_leaf->Resize(border);
-    // 计算分裂后新key的位置
-    size_t pos = i < border ? i : i - border;
-    // 判断新key应该位于哪个节点上
-    Leaf* tmp = i < border ? old_leaf : new_leaf;
-    // 插入新key
-    tmp->Insert(pos, key, value, size);
-    new_leaf->m_next_leaf = old_leaf->m_next_leaf;
-    old_leaf->m_next_leaf = new_leaf_node;
-    return new_leaf_node;
+    assert(cursor && cursor->m_is_leaf && "cursor node is invalid");
+    InsertIntoLeaf(cursor, key, std::string(static_cast<const char*>(value), size));
 }
 
 Node* BPTree::DeleteNode(Node* node)
 {
     assert(node && "Delete: try to delete empty node!");
-    if (node->m_is_leaf)
+    if (!node->m_is_leaf)
     {
-        free(node->GetLeaf());
+        auto children = node->m_children;
+        for (Node* child : children)
+        {
+            DeleteNode(child);
+        }
+        node->m_children.clear();
+    }
+
+    m_dirty_pages.erase(node->m_page_id);
+    m_nodes.erase(node->m_page_id);
+    if (node == m_root)
+    {
+        m_root = nullptr;
+        m_meta_dirty = true;
+    }
+    delete node;
+    return nullptr;
+}
+
+void BPTree::DeleteAllNodes()
+{
+    for (auto& [page_id, node] : m_nodes)
+    {
+        (void) page_id;
+        delete node;
+    }
+    m_nodes.clear();
+    m_dirty_pages.clear();
+    m_root = nullptr;
+}
+
+bool BPTree::LoadFromDisk()
+{
+    std::ifstream in(m_file, std::ios::binary);
+    if (!in.good())
+    {
+        return false;
+    }
+
+    MetaPage meta {};
+    if (!LoadMetaPage(in, meta))
+    {
+        return false;
+    }
+    if (meta.m_magic != kFileMagic || meta.m_version != kFileVersion || meta.m_page_size != kPageSize)
+    {
+        return false;
+    }
+    if (meta.m_node_size != m_record_max_size)
+    {
+        throw std::runtime_error("bptree file node size mismatch");
+    }
+
+    m_next_page_id = meta.m_next_page_id;
+    if (meta.m_root_page_id == 0)
+    {
+        return true;
+    }
+
+    std::vector<PendingChildren> pending_children;
+    m_root = LoadNodePage(in, meta.m_root_page_id, pending_children);
+    if (!m_root)
+    {
+        return false;
+    }
+
+    for (const PendingChildren& pending : pending_children)
+    {
+        pending.m_node->m_children.reserve(pending.m_child_page_ids.size());
+        for (uint64_t child_page_id : pending.m_child_page_ids)
+        {
+            Node* child = GetNode(child_page_id);
+            if (!child)
+            {
+                return false;
+            }
+            pending.m_node->m_children.push_back(child);
+        }
+    }
+    return true;
+}
+
+bool BPTree::FlushDirtyPages()
+{
+    if (m_dirty_pages.empty() && !m_meta_dirty)
+    {
+        return true;
+    }
+
+    std::fstream io;
+    if (!OpenStorage(io))
+    {
+        return false;
+    }
+
+    if (m_meta_dirty)
+    {
+        if (!WriteMetaPage(io))
+        {
+            return false;
+        }
+        m_meta_dirty = false;
+    }
+
+    std::vector<uint64_t> dirty_pages(m_dirty_pages.begin(), m_dirty_pages.end());
+    std::sort(dirty_pages.begin(), dirty_pages.end());
+    for (uint64_t page_id : dirty_pages)
+    {
+        Node* node = GetNode(page_id);
+        if (!node)
+        {
+            continue;
+        }
+        if (!WriteNodePage(io, node))
+        {
+            return false;
+        }
+    }
+
+    io.flush();
+    if (!io.good())
+    {
+        return false;
+    }
+    m_dirty_pages.clear();
+    return true;
+}
+
+bool BPTree::LoadMetaPage(std::istream& in, MetaPage& meta)
+{
+    std::array<char, kPageSize> buffer {};
+    in.seekg(0, std::ios::beg);
+    in.read(buffer.data(), static_cast<std::streamsize>(buffer.size()));
+    if (!in.good())
+    {
+        return false;
+    }
+
+    size_t offset = 0;
+    const PageType page_type = static_cast<PageType>(ReadUint32(buffer.data(), offset));
+    if (page_type != PageType::kMeta)
+    {
+        return false;
+    }
+
+    meta.m_magic = ReadUint32(buffer.data(), offset);
+    meta.m_version = ReadUint32(buffer.data(), offset);
+    meta.m_page_size = ReadUint32(buffer.data(), offset);
+    meta.m_reserved = ReadUint32(buffer.data(), offset);
+    meta.m_node_size = ReadUint64(buffer.data(), offset);
+    meta.m_root_page_id = ReadUint64(buffer.data(), offset);
+    meta.m_next_page_id = ReadUint64(buffer.data(), offset);
+    return true;
+}
+
+bool BPTree::WriteMetaPage(std::ostream& out)
+{
+    std::array<char, kPageSize> buffer {};
+    size_t offset = 0;
+    WriteUint32(buffer.data(), offset, static_cast<uint32_t>(PageType::kMeta));
+    WriteUint32(buffer.data(), offset, kFileMagic);
+    WriteUint32(buffer.data(), offset, kFileVersion);
+    WriteUint32(buffer.data(), offset, kPageSize);
+    WriteUint32(buffer.data(), offset, 0);
+    WriteUint64(buffer.data(), offset, m_record_max_size);
+    WriteUint64(buffer.data(), offset, m_root ? m_root->m_page_id : 0);
+    WriteUint64(buffer.data(), offset, m_next_page_id);
+
+    auto* io = dynamic_cast<std::fstream*>(&out);
+    assert(io && "WriteMetaPage requires fstream.");
+    io->seekp(0, std::ios::beg);
+    io->write(buffer.data(), static_cast<std::streamsize>(buffer.size()));
+    return io->good();
+}
+
+Node* BPTree::LoadNodePage(std::istream& in, uint64_t page_id, std::vector<PendingChildren>& pending_children)
+{
+    if (Node* existing = GetNode(page_id))
+    {
+        return existing;
+    }
+
+    std::array<char, kPageSize> buffer {};
+    in.seekg(static_cast<std::streamoff>(page_id * kPageSize), std::ios::beg);
+    in.read(buffer.data(), static_cast<std::streamsize>(buffer.size()));
+    if (!in.good())
+    {
+        return nullptr;
+    }
+
+    size_t offset = 0;
+    const PageType page_type = static_cast<PageType>(ReadUint32(buffer.data(), offset));
+    if (page_type != PageType::kLeaf && page_type != PageType::kInternal)
+    {
+        return nullptr;
+    }
+
+    const bool is_leaf = page_type == PageType::kLeaf;
+    const uint64_t stored_page_id = ReadUint64(buffer.data(), offset);
+    if (stored_page_id != page_id)
+    {
+        return nullptr;
+    }
+
+    Node* node = new Node(is_leaf, m_record_max_size, page_id);
+    node->m_parent_page_id = ReadUint64(buffer.data(), offset);
+    const uint64_t next_leaf_page_id = ReadUint64(buffer.data(), offset);
+
+    const uint32_t key_count = ReadUint32(buffer.data(), offset);
+    node->m_keys.reserve(key_count);
+    for (uint32_t key_index = 0; key_index < key_count; ++key_index)
+    {
+        node->m_keys.push_back(ReadString(buffer.data(), offset));
+    }
+
+    if (is_leaf)
+    {
+        node->m_values.reserve(key_count);
+        for (uint32_t value_index = 0; value_index < key_count; ++value_index)
+        {
+            node->m_values.push_back(ReadString(buffer.data(), offset));
+        }
     }
     else
     {
-        for (size_t i = -1; i <= node->GetSize(); i++)
+        PendingChildren pending {};
+        pending.m_node = node;
+        const uint32_t child_count = ReadUint32(buffer.data(), offset);
+        pending.m_child_page_ids.reserve(child_count);
+        for (uint32_t child_index = 0; child_index < child_count; ++child_index)
         {
-            if (node->GetIndex()->m_next[i] == nullptr)
+            const uint64_t child_page_id = ReadUint64(buffer.data(), offset);
+            pending.m_child_page_ids.push_back(child_page_id);
+            if (!LoadNodePage(in, child_page_id, pending_children))
             {
-                continue;
+                delete node;
+                return nullptr;
             }
-            delete DeleteNode(node->GetIndex()->m_next[i]);
-            node->GetIndex()->m_next[i] = nullptr;
         }
-        delete node->GetIndex();
-        node->m_index = nullptr;
+        pending_children.push_back(std::move(pending));
     }
-    if (node == m_root)
+
+    m_nodes[page_id] = node;
+    if (next_leaf_page_id != 0)
     {
-        delete node;
-        node = nullptr;
-        m_root = nullptr;
+        Node* next_leaf = LoadNodePage(in, next_leaf_page_id, pending_children);
+        if (!next_leaf)
+        {
+            m_nodes.erase(page_id);
+            delete node;
+            return nullptr;
+        }
+        node->m_next_leaf = next_leaf;
     }
     return node;
+}
+
+bool BPTree::WriteNodePage(std::ostream& out, const Node* node)
+{
+    assert(node && "WriteNodePage: node is nullptr.");
+    std::array<char, kPageSize> buffer {};
+    size_t offset = 0;
+    WriteUint32(buffer.data(), offset, static_cast<uint32_t>(node->m_is_leaf ? PageType::kLeaf : PageType::kInternal));
+    WriteUint64(buffer.data(), offset, node->m_page_id);
+    WriteUint64(buffer.data(), offset, node->m_parent_page_id);
+    WriteUint64(buffer.data(), offset, node->m_next_leaf ? node->m_next_leaf->m_page_id : 0);
+    WriteUint32(buffer.data(), offset, static_cast<uint32_t>(node->m_keys.size()));
+    for (const std::string& key : node->m_keys)
+    {
+        WriteString(buffer.data(), offset, key);
+    }
+
+    if (node->m_is_leaf)
+    {
+        for (const std::string& value : node->m_values)
+        {
+            WriteString(buffer.data(), offset, value);
+        }
+    }
+    else
+    {
+        WriteUint32(buffer.data(), offset, static_cast<uint32_t>(node->m_children.size()));
+        for (Node* child : node->m_children)
+        {
+            WriteUint64(buffer.data(), offset, child->m_page_id);
+        }
+    }
+
+    auto* io = dynamic_cast<std::fstream*>(&out);
+    assert(io && "WriteNodePage requires fstream.");
+    io->seekp(static_cast<std::streamoff>(node->m_page_id * kPageSize), std::ios::beg);
+    io->write(buffer.data(), static_cast<std::streamsize>(buffer.size()));
+    return io->good();
+}
+
+bool BPTree::OpenStorage(std::fstream& io)
+{
+    io.open(m_file, std::ios::in | std::ios::out | std::ios::binary);
+    if (io.good())
+    {
+        return true;
+    }
+
+    std::ofstream create(m_file, std::ios::binary | std::ios::trunc);
+    if (!create.good())
+    {
+        return false;
+    }
+    create.close();
+
+    io.clear();
+    io.open(m_file, std::ios::in | std::ios::out | std::ios::binary);
+    return io.good();
+}
+
+void BPTree::WriteUint32(char* buffer, size_t& offset, uint32_t value)
+{
+    assert(offset + sizeof(value) <= kPageSize && "page buffer overflow");
+    std::memcpy(buffer + offset, &value, sizeof(value));
+    offset += sizeof(value);
+}
+
+void BPTree::WriteUint64(char* buffer, size_t& offset, uint64_t value)
+{
+    assert(offset + sizeof(value) <= kPageSize && "page buffer overflow");
+    std::memcpy(buffer + offset, &value, sizeof(value));
+    offset += sizeof(value);
+}
+
+void BPTree::WriteString(char* buffer, size_t& offset, const std::string& value)
+{
+    WriteUint32(buffer, offset, static_cast<uint32_t>(value.size()));
+    assert(offset + value.size() <= kPageSize && "page buffer overflow");
+    std::memcpy(buffer + offset, value.data(), value.size());
+    offset += value.size();
+}
+
+uint32_t BPTree::ReadUint32(const char* buffer, size_t& offset) const
+{
+    uint32_t value = 0;
+    std::memcpy(&value, buffer + offset, sizeof(value));
+    offset += sizeof(value);
+    return value;
+}
+
+uint64_t BPTree::ReadUint64(const char* buffer, size_t& offset) const
+{
+    uint64_t value = 0;
+    std::memcpy(&value, buffer + offset, sizeof(value));
+    offset += sizeof(value);
+    return value;
+}
+
+std::string BPTree::ReadString(const char* buffer, size_t& offset) const
+{
+    const uint32_t size = ReadUint32(buffer, offset);
+    std::string value(size, '\0');
+    std::memcpy(value.data(), buffer + offset, size);
+    offset += size;
+    return value;
 }
