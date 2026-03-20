@@ -98,7 +98,7 @@ void BPTree::TraverseIndex(Node* index_node)
     }
 }
 
-std::optional<Data> BPTree::Search(const std::string& key)
+std::optional<Data> BPTree::Search(const std::string& key) const
 {
     std::optional<Data> data;
     if (key.empty() || !m_root)
@@ -270,7 +270,7 @@ Node* BPTree::SplitInternalNode(Node* node, std::string& promoted_key)
     return new_internal;
 }
 
-std::pair<Node*, Node*> BPTree::FindLeaf(const std::string& key)
+std::pair<Node*, Node*> BPTree::FindLeaf(const std::string& key) const
 {
     assert(m_root && "root is nullptr");
     Node* cursor = m_root;

@@ -35,7 +35,7 @@ public:
     void TraverseLeaf(Node* leaf_node);
     void TraverseIndex(Node* index_node);
 
-    std::optional<Data> Search(const std::string& key);
+    std::optional<Data> Search(const std::string& key) const;
     void DeleteIndexNode(Node* node);
     Node* GetRoot();
 
@@ -71,7 +71,7 @@ private:
     Node* SplitLeafNode(Node* leaf);
     bool InsertInternal(const std::string& key, Node* cursor, Node* child);
     Node* SplitInternalNode(Node* node, std::string& promoted_key);
-    std::pair<Node*, Node*> FindLeaf(const std::string& key);
+    std::pair<Node*, Node*> FindLeaf(const std::string& key) const;
     void AddRecord(Node* cur, const std::string& key, const void* value, size_t size);
     Node* DeleteNode(Node* node);
     void DeleteAllNodes();
