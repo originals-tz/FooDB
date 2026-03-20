@@ -1,0 +1,24 @@
+{
+  "name": "FooDB",
+  "type": "C++ database prototype",
+  "top_level": [
+    "CMakeLists.txt",
+    "src/",
+    "test/",
+    "docs/"
+  ],
+  "modules": [
+    {
+      "path": "src/store",
+      "purpose": "Persistent B+Tree indexing and page serialization"
+    },
+    {
+      "path": "src/catalog",
+      "purpose": "Schema, row serialization, and table-level persistence"
+    },
+    {
+      "path": "test",
+      "purpose": "Executable regression tests"
+    }
+  ]
+}
